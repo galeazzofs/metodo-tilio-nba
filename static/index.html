@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NBA Tonight</title>
+  <style>
+    :root {
+      --bg:      #08080f;
+      --surface: #0f0f1c;
+      --card:    rgba(255, 255, 255, 0.04);
+      --border:  rgba(255, 255, 255, 0.07);
+
+      --orange: #f76c1b;
+      --orange-dim: rgba(247, 108, 27, 0.18);
+
+      --gold:        #fbbf24;
+      --gold-dim:    rgba(251, 191, 36, 0.14);
+      --gold-border: rgba(251, 191, 36, 0.28);
+
+      --purple:        #a78bfa;
+      --purple-dim:    rgba(167, 139, 250, 0.12);
+      --purple-border: rgba(167, 139, 250, 0.25);
+
+      --green:        #34d399;
+      --green-dim:    rgba(52, 211, 153, 0.12);
+      --green-border: rgba(52, 211, 153, 0.25);
+
+      --text:  #f1f5f9;
+      --muted: #64748b;
+      --soft:  #94a3b8;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── ambient glow ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 15% 10%, rgba(247,108,27,.07) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 85% 90%, rgba(167,139,250,.06) 0%, transparent 60%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── header ── */
+    header { text-align: center; padding: 64px 0 36px; }
+
+    .eyebrow {
+      font-size: 11px; font-weight: 700; letter-spacing: 4px;
+      text-transform: uppercase; color: var(--orange); margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: clamp(40px, 7vw, 64px); font-weight: 900; letter-spacing: -2px; line-height: 1;
+      background: linear-gradient(150deg, #fff 30%, #475569 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    .tagline { color: var(--muted); font-size: 15px; }
+
+    .date-chip {
+      display: inline-block; margin-top: 18px; padding: 5px 16px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 99px; font-size: 12px; color: var(--soft);
+    }
+
+    /* ── run button area ── */
+    .run-area { text-align: center; padding: 28px 0 24px; }
+
+    .btn-run {
+      background: var(--orange); color: #fff; border: none;
+      padding: 15px 52px; border-radius: 99px;
+      font-size: 15px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; cursor: pointer;
+      box-shadow: 0 0 32px rgba(247,108,27,.35), 0 4px 18px rgba(0,0,0,.35);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn-run:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 0 56px rgba(247,108,27,.45), 0 8px 28px rgba(0,0,0,.4);
+    }
+    .btn-run:disabled { opacity: .55; cursor: not-allowed; }
+
+    .status-row { margin-top: 14px; min-height: 30px; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 14px; border-radius: 99px;
+      font-size: 12px; font-weight: 600; letter-spacing: .5px;
+    }
+    .badge-running { background: var(--gold-dim);  color: var(--gold);   border: 1px solid var(--gold-border); }
+    .badge-done    { background: var(--green-dim); color: var(--green);  border: 1px solid var(--green-border); }
+    .badge-error   { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.25); }
+
+    .spinner {
+      width: 11px; height: 11px;
+      border: 2px solid rgba(251,191,36,.3); border-top-color: var(--gold);
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── log terminal ── */
+    .log-wrap { margin: 8px 0 28px; display: none; }
+    .log-wrap.show { display: block; animation: fadeUp .3s ease; }
+
+    .log-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+    }
+
+    .terminal {
+      background: #04040a; border: 1px solid rgba(255,255,255,.05);
+      border-radius: 12px; padding: 18px 20px;
+      font-family: 'Cascadia Code', 'Courier New', monospace; font-size: 12px;
+      line-height: 1.75; color: #6ee7b7; max-height: 220px; overflow-y: auto;
+    }
+    .log-line { animation: fadeUp .25s ease; }
+    .log-line .prompt { color: var(--orange); user-select: none; }
+
+    /* ── divider ── */
+    .divider {
+      display: flex; align-items: center; gap: 14px; margin: 8px 0 32px;
+    }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--muted);
+    }
+
+    /* ── rating group ── */
+    .rating-group { margin-bottom: 44px; animation: fadeUp .45s ease; }
+
+    .group-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+    }
+    .group-icon { font-size: 20px; }
+    .group-label {
+      font-size: 11px; font-weight: 800; letter-spacing: 3.5px; text-transform: uppercase;
+    }
+    .group-line { flex: 1; height: 1px; background: var(--border); }
+    .group-count {
+      font-size: 11px; font-weight: 600; letter-spacing: 1px;
+      padding: 2px 10px; border-radius: 99px;
+    }
+
+    /* ── player card ── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 18px; padding: 22px 24px;
+      margin-bottom: 14px; transition: transform .2s, box-shadow .2s;
+      position: relative; overflow: hidden;
+    }
+    .card::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    }
+    .card:hover { transform: translateY(-3px); }
+
+    /* best */
+    .card-best { border-color: var(--gold-border); }
+    .card-best::after { background: linear-gradient(90deg, var(--gold), transparent 60%); }
+    .card-best:hover { box-shadow: 0 10px 40px rgba(251,191,36,.12); }
+
+    /* very favorable */
+    .card-very { border-color: var(--purple-border); }
+    .card-very::after { background: linear-gradient(90deg, var(--purple), transparent 60%); }
+    .card-very:hover { box-shadow: 0 10px 40px rgba(167,139,250,.12); }
+
+    /* favorable */
+    .card-fav { border-color: var(--green-border); }
+    .card-fav::after { background: linear-gradient(90deg, var(--green), transparent 60%); }
+    .card-fav:hover { box-shadow: 0 10px 40px rgba(52,211,153,.1); }
+
+    .card-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 16px; gap: 12px;
+    }
+
+    .player-name { font-size: 22px; font-weight: 800; letter-spacing: -.4px; line-height: 1.1; }
+
+    .player-sub { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+
+    .pos-tag {
+      padding: 2px 9px; border-radius: 99px;
+      font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+    }
+    .pos-best { background: var(--gold-dim);   color: var(--gold); }
+    .pos-very { background: var(--purple-dim); color: var(--purple); }
+    .pos-fav  { background: var(--green-dim);  color: var(--green); }
+
+    .card-meta { font-size: 12px; color: var(--muted); }
+
+    .rating-tag {
+      flex-shrink: 0; padding: 6px 13px; border-radius: 99px;
+      font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .tag-best { background: var(--gold-dim);   color: var(--gold);   border: 1px solid var(--gold-border); }
+    .tag-very { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple-border); }
+    .tag-fav  { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green-border); }
+
+    /* signals */
+    .signals { border-top: 1px solid var(--border); padding-top: 14px; margin-bottom: 16px; }
+
+    .signal {
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 5px 0; font-size: 13px; color: var(--soft);
+      border-bottom: 1px solid rgba(255,255,255,.03);
+    }
+    .signal:last-child { border-bottom: none; }
+    .sig-arrow { color: var(--orange); font-size: 15px; line-height: 1.3; flex-shrink: 0; }
+
+    /* stats */
+    .stats {
+      display: flex; gap: 0; border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .stat { flex: 1; text-align: center; }
+    .stat + .stat { border-left: 1px solid var(--border); }
+
+    .stat-val { font-size: 21px; font-weight: 800; }
+    .stat-lbl {
+      font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--muted); margin-top: 2px;
+    }
+
+    /* ── empty / footer ── */
+    .empty {
+      text-align: center; padding: 60px 0;
+      color: var(--muted); animation: fadeUp .4s ease;
+    }
+    .empty-icon { font-size: 44px; margin-bottom: 14px; }
+    .empty p { font-size: 15px; }
+
+    footer { text-align: center; padding: 48px 0 32px; color: var(--muted); font-size: 12px; }
+
+    /* ── animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- header -->
+  <header>
+    <div class="eyebrow">🏀 Injury Spot Finder</div>
+    <h1>NBA Tonight</h1>
+    <p class="tagline">Bench players stepping up due to tonight's injuries — ranked by matchup quality</p>
+    <div class="date-chip" id="dateChip"></div>
+  </header>
+
+  <!-- run -->
+  <div class="run-area">
+    <button class="btn-run" id="runBtn" onclick="startAnalysis()">Run Tonight's Analysis</button>
+    <div class="status-row" id="statusRow"></div>
+  </div>
+
+  <!-- log terminal -->
+  <div class="log-wrap" id="logWrap">
+    <div class="log-label">Live Output</div>
+    <div class="terminal" id="terminal"></div>
+  </div>
+
+  <!-- results -->
+  <div id="results"></div>
+
+  <footer>NBA Tonight · runs locally · no subscriptions</footer>
+</div>
+
+<script>
+  // ── state ──────────────────────────────────────────────────────────────────
+  let pollTimer   = null;
+  let logSeen     = 0;
+  let lastStatus  = 'idle';
+
+  // ── init ───────────────────────────────────────────────────────────────────
+  document.getElementById('dateChip').textContent =
+    new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  // restore state on page load (e.g. if analysis already ran)
+  fetchStatus();
+
+  // ── actions ────────────────────────────────────────────────────────────────
+  async function startAnalysis() {
+    setRunBtn(false);
+    logSeen = 0;
+    document.getElementById('results').innerHTML = '';
+    document.getElementById('terminal').innerHTML = '';
+    document.getElementById('logWrap').classList.add('show');
+
+    try {
+      const r = await fetch('/api/run', { method: 'POST' });
+      if (!r.ok) {
+        const e = await r.json();
+        showBadge('error', '⚠ ' + (e.error || 'Failed to start'));
+        setRunBtn(true);
+        return;
+      }
+    } catch {
+      showBadge('error', '⚠ Cannot reach server');
+      setRunBtn(true);
+      return;
+    }
+
+    showBadge('running', '<span class="spinner"></span> Analyzing…');
+    pollTimer = setInterval(fetchStatus, 1600);
+  }
+
+  async function fetchStatus() {
+    try {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      handleState(d);
+    } catch { /* ignore network blip */ }
+  }
+
+  function handleState(d) {
+    if (d.status === lastStatus && d.status === 'running') {
+      appendLogs(d.logs);
+      return;
+    }
+    lastStatus = d.status;
+
+    if (d.status === 'running') {
+      showBadge('running', '<span class="spinner"></span> Analyzing…');
+      document.getElementById('logWrap').classList.add('show');
+      appendLogs(d.logs);
+
+    } else if (d.status === 'done') {
+      clearInterval(pollTimer);
+      appendLogs(d.logs);
+      showBadge('done', '<span class="dot"></span> Analysis complete');
+      setRunBtn(true, 'Run Again');
+      renderResults(d.results);
+
+    } else if (d.status === 'error') {
+      clearInterval(pollTimer);
+      showBadge('error', '⚠ ' + (d.error || 'Unknown error'));
+      setRunBtn(true);
+
+    } else if (d.status === 'idle') {
+      // nothing to restore
+    }
+  }
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+  function setRunBtn(enabled, label) {
+    const b = document.getElementById('runBtn');
+    b.disabled = !enabled;
+    if (label) b.textContent = label;
+  }
+
+  function showBadge(type, html) {
+    const row = document.getElementById('statusRow');
+    row.innerHTML = `<span class="badge badge-${type}">${html}</span>`;
+  }
+
+  function appendLogs(logs) {
+    if (!logs || logs.length <= logSeen) return;
+    const term = document.getElementById('terminal');
+    logs.slice(logSeen).forEach(line => {
+      const d = document.createElement('div');
+      d.className = 'log-line';
+      d.innerHTML = `<span class="prompt">&gt; </span>${esc(line)}`;
+      term.appendChild(d);
+    });
+    logSeen = logs.length;
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── render results ─────────────────────────────────────────────────────────
+  const GROUPS = [
+    { key: 'BEST OF THE NIGHT', label: 'Best of the Night', icon: '🏆', css: 'best',
+      tagLabel: '★ Best of the Night' },
+    { key: 'VERY FAVORABLE',    label: 'Very Favorable',    icon: '🔥', css: 'very',
+      tagLabel: '↑↑ Very Favorable' },
+    { key: 'FAVORABLE',         label: 'Favorable',         icon: '✅', css: 'fav',
+      tagLabel: '↑ Favorable' },
+  ];
+
+  const COLOR = { best: 'var(--gold)', very: 'var(--purple)', fav: 'var(--green)' };
+  const COUNT_BG = {
+    best: 'var(--gold-dim)',   very: 'var(--purple-dim)',   fav: 'var(--green-dim)'
+  };
+  const COUNT_COLOR = COLOR;
+
+  function renderResults(results) {
+    const el = document.getElementById('results');
+
+    if (!results || results.length === 0) {
+      el.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">🏀</div>
+          <p>No favorable plays found for tonight.</p>
+        </div>`;
+      return;
+    }
+
+    const grouped = {};
+    GROUPS.forEach(g => { grouped[g.key] = []; });
+    results.forEach(p => { if (grouped[p.rating]) grouped[p.rating].push(p); });
+
+    let html = `
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-label">Tonight's Plays</div>
+        <div class="divider-line"></div>
+      </div>`;
+
+    GROUPS.forEach(g => {
+      const players = grouped[g.key];
+      if (!players.length) return;
+
+      html += `
+        <div class="rating-group">
+          <div class="group-header">
+            <span class="group-icon">${g.icon}</span>
+            <span class="group-label" style="color:${COLOR[g.css]}">${g.label}</span>
+            <div class="group-line"></div>
+            <span class="group-count"
+              style="background:${COUNT_BG[g.css]};color:${COUNT_COLOR[g.css]};border:1px solid ${COUNT_COLOR[g.css]}33">
+              ${players.length}
+            </span>
+          </div>`;
+
+      players.forEach(p => { html += buildCard(p, g); });
+      html += `</div>`;
+    });
+
+    el.innerHTML = html;
+  }
+
+  function buildCard(p, g) {
+    const css = g.css;
+
+    const signals = (p.signals || []).map(s =>
+      `<div class="signal"><span class="sig-arrow">›</span><span>${esc(s)}</span></div>`
+    ).join('');
+
+    const stats = p.recent_stats ? `
+      <div class="stats">
+        ${ statCell(p.recent_stats.pts, 'PTS') }
+        ${ statCell(p.recent_stats.reb, 'REB') }
+        ${ statCell(p.recent_stats.ast, 'AST') }
+        ${ statCell(p.recent_stats.min, 'MIN') }
+        ${ statCell(p.recent_stats.games + 'g', 'SAMPLE') }
+      </div>` : '';
+
+    return `
+      <div class="card card-${css}">
+        <div class="card-head">
+          <div>
+            <div class="player-name">${esc(p.player)}</div>
+            <div class="player-sub">
+              <span class="pos-tag pos-${css}">${esc(p.position)}</span>
+              <span class="card-meta">${esc(p.team)} &middot; ${esc(p.game)}</span>
+            </div>
+          </div>
+          <span class="rating-tag tag-${css}">${esc(g.tagLabel)}</span>
+        </div>
+        <div class="signals">${signals}</div>
+        ${stats}
+      </div>`;
+  }
+
+  function statCell(val, label) {
+    return `
+      <div class="stat">
+        <div class="stat-val">${val}</div>
+        <div class="stat-lbl">${label}</div>
+      </div>`;
+  }
+</script>
+</body>
+</html>

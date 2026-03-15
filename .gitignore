@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+*.html
+!static/index.html
+*.log
+.claude/
+debug_*.py
+test_*.py
