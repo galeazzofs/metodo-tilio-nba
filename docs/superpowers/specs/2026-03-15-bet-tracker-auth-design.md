@@ -40,8 +40,7 @@ Browser (Firebase JS SDK)
 - ID tokens verified server-side via `firebase-admin` Python SDK
 
 ### Route Protection Policy
-- **Existing routes** (`/api/run`, `/api/status`, `/api/reset`) remain **public** — no token required. The analysis tool continues to work as before.
-- **All `/api/bets/*` routes** require a valid Firebase ID token in the `Authorization: Bearer <token>` header.
+**All `/api/*` routes require a valid Firebase ID token** in the `Authorization: Bearer <token>` header — including `/api/run`, `/api/status`, `/api/reset`, and all `/api/bets/*` routes. Unauthenticated requests to any API route return 401. The auth gate on the frontend prevents users from reaching any tab without being signed in.
 
 ---
 
