@@ -1,10 +1,10 @@
-// Firebase web config — chaves públicas, seguro para commitar.
-// Segurança garantida pelas Firestore Security Rules, não pelo sigilo desta config.
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "COLE_AQUI",
-  authDomain: "COLE_AQUI",
-  projectId: "COLE_AQUI",
-  storageBucket: "COLE_AQUI",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI"
+  apiKey: "AIzaSyAnHvJF6-5F162Miq1dorZFwuhS4mVPngQ",
+  authDomain: "tilio-nba.firebaseapp.com",
+  projectId: "tilio-nba",
+  storageBucket: "tilio-nba.firebasestorage.app",
+  messagingSenderId: "452829458006",
+  appId: "1:452829458006:web:7102b15e5c548daf3955f7",
+  measurementId: "G-DXPVF5VT3Z"
 };
