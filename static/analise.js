@@ -103,9 +103,9 @@ function esc(s) {
 
 // ── renderizar resultados ──────────────────────────────────────────────────
 const GROUPS = [
-  { key: 'BEST OF THE NIGHT', label: 'Melhor da Noite',    icon: '🏆', css: 'best', tagLabel: '★ Melhor da Noite' },
-  { key: 'VERY FAVORABLE',    label: 'Muito Favorável',    icon: '🔥', css: 'very', tagLabel: '↑↑ Muito Favorável' },
-  { key: 'FAVORABLE',         label: 'Favorável',          icon: '✅', css: 'fav',  tagLabel: '↑ Favorável' },
+  { key: 'BEST OF THE NIGHT', label: 'Melhor da Noite',    icon: '◈', css: 'best', tagLabel: '★ MELHOR DA NOITE' },
+  { key: 'VERY FAVORABLE',    label: 'Muito Favorável',    icon: '◎', css: 'very', tagLabel: '↑↑ MUITO FAVORÁVEL' },
+  { key: 'FAVORABLE',         label: 'Favorável',          icon: '○', css: 'fav',  tagLabel: '↑ FAVORÁVEL' },
 ];
 
 const COLOR    = { best: 'var(--gold)', very: 'var(--purple)', fav: 'var(--green)' };

@@ -1,11 +1,10 @@
 // apostas.js — Aba Minhas Apostas
-// Depende de: auth.js (authFetch), showToast (index.html)
 
 let _allBets = [];
 
 async function loadApostas() {
   const container = document.getElementById('tab-apostas');
-  container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">Carregando...</div>';
+  container.innerHTML = '<div style="padding:60px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em">Carregando...</div>';
 
   try {
     const res = await authFetch('/api/bets');
@@ -13,15 +12,15 @@ async function loadApostas() {
     _allBets = await res.json();
     renderApostas();
   } catch (e) {
-    container.innerHTML = `<div style="padding:40px;text-align:center;color:#f87171">${e.message}</div>`;
+    container.innerHTML = `<div style="padding:60px;text-align:center;color:var(--red);font-family:var(--font-mono);font-size:12px">${e.message}</div>`;
   }
 }
 
 function renderApostas() {
   const container = document.getElementById('tab-apostas');
 
-  const q   = (document.getElementById('filtroTexto')?.value || '').toLowerCase();
-  const res = document.getElementById('filtroResultado')?.value || 'todos';
+  const q   = (document.getElementById('filtroTexto')?.value   || '').toLowerCase();
+  const res = (document.getElementById('filtroResultado')?.value || 'todos');
   const de  = document.getElementById('filtroDe')?.value  || '';
   const ate = document.getElementById('filtroAte')?.value || '';
 
@@ -32,150 +31,174 @@ function renderApostas() {
   if (ate) bets = bets.filter(b => b.data <= ate);
 
   const BADGE = {
-    ganhou:   '<span style="background:rgba(52,211,153,.15);color:#34d399;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700">🟢 Ganhou</span>',
-    perdeu:   '<span style="background:rgba(248,113,113,.15);color:#f87171;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700">🔴 Perdeu</span>',
-    pendente: '<span style="background:rgba(251,191,36,.15);color:#fbbf24;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700">🟡 Pendente</span>',
-    void:     '<span style="background:rgba(255,255,255,.08);color:#94a3b8;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700">⚪ Void</span>',
+    ganhou:   '<span class="b-badge b-win">Ganhou</span>',
+    perdeu:   '<span class="b-badge b-loss">Perdeu</span>',
+    pendente: '<span class="b-badge b-pend">Pendente</span>',
+    void:     '<span class="b-badge b-void">Void</span>',
   };
 
-  const lpColor = v => v == null ? 'var(--muted)' : v >= 0 ? '#34d399' : '#f87171';
-  const lpText  = v => v == null ? '—' : (v >= 0 ? '+' : '') + 'R$ ' + Math.abs(v).toFixed(2);
+  const pnlClass = v => v == null ? 't-pnl-zero' : v >= 0 ? 't-pnl-pos' : 't-pnl-neg';
+  const pnlText  = v => v == null ? '—' : (v >= 0 ? '+' : '') + 'R$ ' + Math.abs(v).toFixed(2);
 
   const rows = bets.length === 0
-    ? `<tr><td colspan="7" style="text-align:center;padding:48px;color:var(--muted)">Nenhuma aposta encontrada.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center;padding:52px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em">Nenhuma aposta encontrada.</td></tr>`
     : bets.map(b => `
-        <tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:14px 12px;color:var(--muted);font-size:13px;white-space:nowrap">${b.data}</td>
-          <td style="padding:14px 12px;font-weight:600">${escH(b.partida)}</td>
-          <td style="padding:14px 12px;color:var(--soft);font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(b.descricao)}">${escH(b.descricao)}</td>
-          <td style="padding:14px 12px;text-align:right">${b.odds?.toFixed(2) ?? '—'}</td>
-          <td style="padding:14px 12px;text-align:right;white-space:nowrap">R$ ${b.stake?.toFixed(2) ?? '—'}</td>
-          <td style="padding:14px 12px">${BADGE[b.resultado] ?? b.resultado}</td>
-          <td style="padding:14px 12px;text-align:right;font-weight:700;color:${lpColor(b.lucro_prejuizo)};white-space:nowrap">${lpText(b.lucro_prejuizo)}</td>
+        <tr>
+          <td class="t-date">${escH(b.data)}</td>
+          <td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(b.partida)}</td>
+          <td style="color:var(--soft);font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(b.descricao)}">${escH(b.descricao)}</td>
+          <td class="t-num" style="text-align:right">${b.odds?.toFixed(2) ?? '—'}</td>
+          <td class="t-num" style="text-align:right;white-space:nowrap">R$ ${b.stake?.toFixed(2) ?? '—'}</td>
+          <td>${BADGE[b.resultado] ?? escH(b.resultado)}</td>
+          <td class="${pnlClass(b.lucro_prejuizo)}" style="text-align:right;white-space:nowrap">${pnlText(b.lucro_prejuizo)}</td>
         </tr>`).join('');
 
   const emptyState = _allBets.length === 0 ? `
-    <div style="text-align:center;padding:72px 24px;color:var(--muted)">
-      <div style="font-size:48px;margin-bottom:16px">🎰</div>
-      <p style="font-size:15px">Nenhuma aposta registrada ainda.<br>Importe do bet365 ou adicione manualmente.</p>
+    <div style="text-align:center;padding:80px 24px">
+      <div style="font-size:44px;margin-bottom:16px;opacity:0.4">◎</div>
+      <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;line-height:1.8">NENHUMA APOSTA REGISTRADA<br>Importe ou adicione manualmente.</p>
     </div>` : '';
 
-  const inputStyle = 'padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;outline:none;';
-
   container.innerHTML = `
-    <div style="max-width:1100px;margin:0 auto;padding:32px 24px">
-
-      <!-- Toolbar -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap">
-        <h2 style="font-size:20px;font-weight:800;flex:1;letter-spacing:-.5px">Minhas Apostas</h2>
-        <button onclick="abrirFormulario()"
-          style="padding:10px 22px;background:var(--orange);border:none;border-radius:99px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.5px">
-          + Adicionar
-        </button>
-        <label style="padding:10px 22px;background:var(--card);border:1px solid var(--border);border-radius:99px;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.5px">
-          ↑ Importar CSV
-          <input type="file" accept=".csv" style="display:none" onchange="importarCSV(this)" />
-        </label>
-        <label style="padding:10px 22px;background:var(--card);border:1px solid var(--border);border-radius:99px;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.5px">
-          📸 Importar por Print
-          <input type="file" accept="image/*" style="display:none" onchange="importarPrint(this)" />
-        </label>
+    <div class="pg-wrap">
+      <!-- Header -->
+      <div class="pg-hdr">
+        <div>
+          <h1 class="section-title">APOSTAS</h1>
+          <div class="section-sub">Histórico e gestão</div>
+        </div>
+        <div class="hdr-actions">
+          <button class="btn-primary" onclick="abrirFormulario()">+ Nova</button>
+          <label class="btn-outline" style="cursor:pointer">
+            ↑ CSV
+            <input type="file" accept=".csv" style="display:none" onchange="importarCSV(this)" />
+          </label>
+          <label class="btn-outline" style="cursor:pointer">
+            ◈ Print IA
+            <input type="file" accept="image/*" style="display:none" onchange="importarPrint(this)" />
+          </label>
+        </div>
       </div>
 
-      <!-- Filtros -->
-      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
-        <input id="filtroTexto" placeholder="Buscar partida ou descrição…" oninput="renderApostas()"
-          style="flex:1;min-width:200px;${inputStyle}" />
-        <select id="filtroResultado" onchange="renderApostas()" style="${inputStyle}">
+      <!-- Filters -->
+      <div class="filters-row">
+        <input class="f-input" style="flex:1;min-width:200px" id="filtroTexto" placeholder="Buscar partida ou descrição…" oninput="renderApostas()" />
+        <select class="f-input" id="filtroResultado" onchange="renderApostas()">
           <option value="todos">Todos</option>
           <option value="ganhou">Ganhou</option>
           <option value="perdeu">Perdeu</option>
           <option value="pendente">Pendente</option>
           <option value="void">Void</option>
         </select>
-        <input type="date" id="filtroDe"  onchange="renderApostas()" style="${inputStyle}" />
-        <input type="date" id="filtroAte" onchange="renderApostas()" style="${inputStyle}" />
+        <input type="date" class="f-input" id="filtroDe"  onchange="renderApostas()" />
+        <input type="date" class="f-input" id="filtroAte" onchange="renderApostas()" />
       </div>
 
       ${emptyState || `
-      <!-- Tabela -->
-      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:16px;background:var(--card)">
-        <table style="width:100%;border-collapse:collapse">
+      <!-- Table -->
+      <div class="t-wrap">
+        <table class="t-table">
           <thead>
-            <tr style="border-bottom:1px solid var(--border)">
-              ${['Data','Partida','Descrição','Odds','Stake','Resultado','L/P'].map(h =>
-                `<th style="padding:12px;text-align:${h==='Odds'||h==='Stake'||h==='L/P'?'right':'left'};font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700">${h}</th>`
-              ).join('')}
+            <tr>
+              <th>Data</th>
+              <th>Partida</th>
+              <th>Descrição</th>
+              <th class="r">Odds</th>
+              <th class="r">Stake</th>
+              <th>Resultado</th>
+              <th class="r">L/P</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`}
+    </div>
 
-      <!-- Painel lateral de nova aposta -->
-      <div id="formPanel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:400px;max-width:100vw;
-           background:var(--surface);border-left:1px solid var(--border);padding:32px 28px;overflow-y:auto;z-index:200;
-           box-shadow:-20px 0 60px rgba(0,0,0,.4)">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">
-          <h3 style="font-size:18px;font-weight:800">Nova Aposta</h3>
-          <button onclick="fecharFormulario()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+    <!-- Form panel overlay -->
+    <div id="formOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:198;backdrop-filter:blur(4px)" onclick="fecharFormulario()"></div>
+
+    <!-- Form panel -->
+    <div id="formPanel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:400px;max-width:100vw;
+         background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;z-index:199;
+         display:none;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,0.45)">
+      <div class="fp-hdr">
+        <span class="fp-title">NOVA APOSTA</span>
+        <button class="btn-close" onclick="fecharFormulario()">×</button>
+      </div>
+      <div class="fp-body">
+        <label class="fp-label">Partida</label>
+        <input class="fp-input" type="text" id="formPartida" placeholder="Lakers vs Celtics" />
+
+        <label class="fp-label">Descrição</label>
+        <input class="fp-input" type="text" id="formDescricao" placeholder="LeBron Mais de 25.5" />
+
+        <label class="fp-label">Tipo</label>
+        <select class="fp-input" id="formTipo">
+          <option>Vencedor</option>
+          <option>Handicap</option>
+          <option>Totais</option>
+          <option>Jogador</option>
+          <option>Outro</option>
+        </select>
+
+        <div class="fp-row">
+          <div>
+            <label class="fp-label">Odds</label>
+            <input class="fp-input" type="number" step="0.01" id="formOdds" placeholder="1.85" />
+          </div>
+          <div>
+            <label class="fp-label">Stake (R$)</label>
+            <input class="fp-input" type="number" step="0.01" id="formStake" placeholder="50" />
+          </div>
         </div>
-        ${fField('Partida',    'formPartida',   'text',   'Lakers vs Celtics')}
-        ${fField('Descrição',  'formDescricao', 'text',   'LeBron Mais de 25.5')}
-        <div style="margin-bottom:16px">
-          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Tipo</label>
-          <select id="formTipo" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px">
-            <option>Vencedor</option><option>Handicap</option><option>Totais</option><option>Jogador</option><option>Outro</option>
-          </select>
-        </div>
-        ${fField('Odds',       'formOdds',  'number', '1.85')}
-        ${fField('Stake (R$)', 'formStake', 'number', '50')}
-        ${fField('Data',       'formData',  'date',   '')}
-        <div style="margin-bottom:24px">
-          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Resultado</label>
-          <select id="formResultado" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px">
-            <option value="pendente">Pendente</option>
-            <option value="ganhou">Ganhou</option>
-            <option value="perdeu">Perdeu</option>
-            <option value="void">Void</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:10px">
-          <button onclick="salvarAposta()"
-            style="flex:1;padding:14px;background:var(--orange);border:none;border-radius:99px;color:#fff;font-weight:700;font-size:14px;cursor:pointer">
-            Salvar Aposta
-          </button>
-          <button onclick="fecharFormulario()"
-            style="padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:99px;color:var(--text);cursor:pointer;font-size:14px">
-            Cancelar
-          </button>
-        </div>
+
+        <label class="fp-label">Data</label>
+        <input class="fp-input" type="date" id="formData" />
+
+        <label class="fp-label">Resultado</label>
+        <select class="fp-input" id="formResultado">
+          <option value="pendente">Pendente</option>
+          <option value="ganhou">Ganhou</option>
+          <option value="perdeu">Perdeu</option>
+          <option value="void">Void</option>
+        </select>
+      </div>
+      <div class="fp-footer">
+        <button class="btn-outline" style="flex:1" onclick="fecharFormulario()">Cancelar</button>
+        <button class="btn-primary" style="flex:2" onclick="salvarAposta()">Salvar Aposta</button>
       </div>
     </div>`;
+
+  // Set today's date on data field
+  const dataInput = document.getElementById('formData');
+  if (dataInput && !dataInput.value) {
+    dataInput.value = new Date().toISOString().slice(0, 10);
+  }
 }
 
-function fField(label, id, type, placeholder) {
-  const today = type === 'date' ? new Date().toISOString().slice(0,10) : '';
-  const val   = type === 'date' ? `value="${today}"` : '';
-  return `<div style="margin-bottom:16px">
-    <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">${label}</label>
-    <input type="${type}" id="${id}" placeholder="${placeholder}" ${val}
-      style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none" />
-  </div>`;
+function abrirFormulario() {
+  const panel = document.getElementById('formPanel');
+  const overlay = document.getElementById('formOverlay');
+  if (panel)   { panel.style.display = 'flex'; }
+  if (overlay) { overlay.style.display = 'block'; }
 }
 
-function abrirFormulario() { document.getElementById('formPanel').style.display = 'block'; }
-function fecharFormulario() { document.getElementById('formPanel').style.display = 'none'; }
+function fecharFormulario() {
+  const panel = document.getElementById('formPanel');
+  const overlay = document.getElementById('formOverlay');
+  if (panel)   { panel.style.display = 'none'; }
+  if (overlay) { overlay.style.display = 'none'; }
+}
 
 async function salvarAposta() {
   const body = {
-    partida:    document.getElementById('formPartida').value,
-    descricao:  document.getElementById('formDescricao').value,
+    partida:     document.getElementById('formPartida').value,
+    descricao:   document.getElementById('formDescricao').value,
     tipo_aposta: document.getElementById('formTipo').value,
-    odds:       parseFloat(document.getElementById('formOdds').value),
-    stake:      parseFloat(document.getElementById('formStake').value),
-    data:       document.getElementById('formData').value,
-    resultado:  document.getElementById('formResultado').value,
+    odds:        parseFloat(document.getElementById('formOdds').value),
+    stake:       parseFloat(document.getElementById('formStake').value),
+    data:        document.getElementById('formData').value,
+    resultado:   document.getElementById('formResultado').value,
   };
   const res = await authFetch('/api/bets', {
     method: 'POST',
@@ -230,5 +253,5 @@ async function importarPrint(input) {
 
 function escH(str) {
   return String(str ?? '').replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
