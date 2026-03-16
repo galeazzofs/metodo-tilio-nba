@@ -73,8 +73,12 @@ function renderApostas() {
           + Adicionar
         </button>
         <label style="padding:10px 22px;background:var(--card);border:1px solid var(--border);border-radius:99px;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.5px">
-          ↑ Importar do bet365
+          ↑ Importar CSV
           <input type="file" accept=".csv" style="display:none" onchange="importarCSV(this)" />
+        </label>
+        <label style="padding:10px 22px;background:var(--card);border:1px solid var(--border);border-radius:99px;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;letter-spacing:.5px">
+          📸 Importar por Print
+          <input type="file" accept="image/*" style="display:none" onchange="importarPrint(this)" />
         </label>
       </div>
 
@@ -202,6 +206,24 @@ async function importarCSV(input) {
     await loadApostas();
   } else {
     showToast('❌ Erro ao importar CSV');
+  }
+  input.value = '';
+}
+
+async function importarPrint(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  showToast('⏳ Analisando print com IA...');
+  const res = await authFetch('/api/bets/import-screenshot', { method: 'POST', body: form });
+  if (res.ok) {
+    const data = await res.json();
+    showToast(`✅ ${data.importadas} apostas importadas, ${data.ignoradas} ignoradas`);
+    await loadApostas();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    showToast('❌ Erro ao importar print: ' + (err.detail || res.status));
   }
   input.value = '';
 }

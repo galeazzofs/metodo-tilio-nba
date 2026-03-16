@@ -13,6 +13,7 @@ from firebase_admin import firestore
 
 from deps import require_auth
 from bets.csv_parser import parse_bet365_csv
+from bets.gemini_parser import parse_screenshot
 
 router = APIRouter(prefix="/api/bets", tags=["bets"])
 
@@ -114,6 +115,46 @@ async def import_bets(
     ignoradas = len(parsed["erros"])
 
     for bet in parsed["bets"]:
+        key = (bet["data"], bet["descricao"], bet["odds"], bet["stake"])
+        if key in existing:
+            ignoradas += 1
+            continue
+        user_bets_ref.document(bet["bet_id"]).set(bet)
+        existing.add(key)
+        importadas += 1
+
+    return {
+        "importadas": importadas,
+        "ignoradas": ignoradas,
+        "erros": parsed["erros"],
+    }
+
+
+@router.post("/import-screenshot")
+async def import_screenshot(
+    file: UploadFile = File(...),
+    uid: str = Depends(require_auth),
+):
+    """Importa apostas a partir de um print (imagem) usando Gemini Vision."""
+    content = await file.read()
+    mime = file.content_type or "image/jpeg"
+    parsed = parse_screenshot(content, mime)
+
+    db = _db()
+    user_bets_ref = db.collection("users").document(uid).collection("bets")
+
+    # Deduplicação
+    existing = {
+        (d.get("data"), d.get("descricao"), d.get("odds"), d.get("stake"))
+        for doc in user_bets_ref.stream()
+        for d in [doc.to_dict()]
+    }
+
+    importadas = 0
+    ignoradas = len(parsed["erros"])
+
+    for bet in parsed["bets"]:
+        bet["uid"] = uid  # preenche uid
         key = (bet["data"], bet["descricao"], bet["odds"], bet["stake"])
         if key in existing:
             ignoradas += 1
