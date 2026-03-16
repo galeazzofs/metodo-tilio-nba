@@ -55,7 +55,7 @@ def parse_screenshot(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
         return {"bets": [], "erros": ["GEMINI_API_KEY não configurada no servidor."]}
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     img_part = {"mime_type": mime_type, "data": image_bytes}
 
