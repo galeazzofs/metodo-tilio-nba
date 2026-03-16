@@ -1,0 +1,51 @@
+// auth.js — Firebase Auth helpers
+// Depende de: firebase-config.js carregado antes deste script
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+
+// Persistência de sessão: token limpo ao fechar o navegador
+auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(console.error);
+
+/** Entra com email + senha. Lança exceção em caso de falha. */
+async function signIn(email, password) {
+  await auth.signInWithEmailAndPassword(email, password);
+}
+
+/** Cria conta. Lança exceção em caso de falha. */
+async function signUp(email, password) {
+  await auth.createUserWithEmailAndPassword(email, password);
+}
+
+/** Sai da conta. */
+async function signOut() {
+  await auth.signOut();
+}
+
+/** Retorna um ID token atualizado para uso nas chamadas de API. Null se não autenticado. */
+async function getToken() {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return user.getIdToken(false);
+}
+
+/**
+ * fetch autenticado — adiciona automaticamente o header Authorization.
+ * Uso: await authFetch('/api/bets', { method: 'GET' })
+ */
+async function authFetch(url, options = {}) {
+  const token = await getToken();
+  const headers = {
+    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  return fetch(url, { ...options, headers });
+}
+
+/**
+ * Registra callback chamado ao mudar estado de autenticação.
+ * Recebe o objeto Firebase user (ou null se deslogado).
+ */
+function onAuthChange(callback) {
+  auth.onAuthStateChanged(callback);
+}

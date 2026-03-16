@@ -2,16 +2,37 @@ import os
 import sys
 import threading
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
+from deps import init_firebase, require_auth
+from bets.router import router as bets_router
+
+# ---------------------------------------------------------------------------
+# Firebase init
+# ---------------------------------------------------------------------------
+init_firebase()
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
 app = FastAPI()
 
-# ---------------------------------------------------------------------------
-# Single-user in-memory state
-# ---------------------------------------------------------------------------
+if os.environ.get("ENV") == "development":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:8000"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
+app.include_router(bets_router)
+
+# ---------------------------------------------------------------------------
+# Single-user in-memory analysis state
+# ---------------------------------------------------------------------------
 analysis_state = {
     "status": "idle",   # idle | running | done | error
     "logs": [],
@@ -22,7 +43,7 @@ state_lock = threading.Lock()
 
 
 class _LogStream:
-    """Redirects print() output into analysis_state["logs"]."""
+    """Redirects print() output into analysis_state['logs']."""
 
     def write(self, text):
         if text and text.strip():
@@ -44,29 +65,29 @@ def _run_analysis():
         from scrapers.fantasypros import get_defense_vs_position
         from analysis.engine import run_analysis
 
-        print("Fetching today's games...")
+        print("Buscando jogos de hoje...")
         games = get_todays_games()
 
         if not games:
-            print("No games today.")
+            print("Nenhum jogo hoje.")
             with state_lock:
                 analysis_state["status"] = "done"
                 analysis_state["results"] = []
             return
 
-        print(f"  {len(games)} games tonight")
+        print(f"  {len(games)} jogos esta noite")
 
-        print("Fetching projected lineups (RotoWire)...")
+        print("Buscando lineups projetados (RotoWire)...")
         lineups = get_projected_lineups()
-        print(f"  {len(lineups)} teams loaded")
+        print(f"  {len(lineups)} times carregados")
 
-        print("Fetching Defense vs Position (FantasyPros)...")
+        print("Buscando Defesa por Posição (FantasyPros)...")
         dvp = get_defense_vs_position()
-        print("  Done")
+        print("  Concluído")
 
-        print("Running analysis...")
+        print("Rodando análise...")
         candidates = run_analysis(games, lineups, dvp)
-        print(f"  Found {len(candidates)} candidate(s)")
+        print(f"  {len(candidates)} candidato(s) encontrado(s)")
 
         with state_lock:
             analysis_state["status"] = "done"
@@ -82,14 +103,14 @@ def _run_analysis():
 
 
 # ---------------------------------------------------------------------------
-# API routes
+# Analysis routes (all protected)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/run")
-def start_analysis():
+def start_analysis(uid: str = Depends(require_auth)):
     with state_lock:
         if analysis_state["status"] == "running":
-            return JSONResponse({"error": "Analysis already running"}, status_code=400)
+            return JSONResponse({"error": "Análise já em andamento"}, status_code=400)
         analysis_state["status"] = "running"
         analysis_state["logs"] = []
         analysis_state["results"] = []
@@ -97,11 +118,11 @@ def start_analysis():
 
     thread = threading.Thread(target=_run_analysis, daemon=True)
     thread.start()
-    return {"status": "started"}
+    return {"status": "iniciado"}
 
 
 @app.get("/api/status")
-def get_status():
+def get_status(uid: str = Depends(require_auth)):
     with state_lock:
         return {
             "status": analysis_state["status"],
@@ -112,21 +133,20 @@ def get_status():
 
 
 @app.post("/api/reset")
-def reset():
+def reset(uid: str = Depends(require_auth)):
     with state_lock:
         if analysis_state["status"] == "running":
-            return JSONResponse({"error": "Cannot reset while running"}, status_code=400)
+            return JSONResponse({"error": "Não é possível resetar durante a análise"}, status_code=400)
         analysis_state["status"] = "idle"
         analysis_state["logs"] = []
         analysis_state["results"] = []
         analysis_state["error"] = None
-    return {"status": "reset"}
+    return {"status": "resetado"}
 
 
 # ---------------------------------------------------------------------------
 # Static files + HTML
 # ---------------------------------------------------------------------------
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 

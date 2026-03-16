@@ -5,3 +5,5 @@ playwright
 pandas
 fastapi
 uvicorn[standard]
+firebase-admin
+python-multipart
