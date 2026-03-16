@@ -27,8 +27,15 @@ def init_firebase():
 # ---------------------------------------------------------------------------
 _bearer = HTTPBearer(auto_error=False)
 
+_DEV_MODE = not os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+
 def require_auth(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> str:
-    """FastAPI dependency — verifies Firebase ID token, returns uid."""
+    """FastAPI dependency — verifies Firebase ID token, returns uid.
+    In dev mode (no service account configured), skips verification and
+    returns a fixed local uid so the app works without Firebase credentials.
+    """
+    if _DEV_MODE:
+        return "dev-local-uid"
     if not creds:
         raise HTTPException(status_code=401, detail="Token ausente")
     try:
