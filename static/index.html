@@ -1388,6 +1388,9 @@
     document.getElementById('tab-' + name).classList.add('active');
     const navEl = document.querySelector(`.nav-item[data-tab="${name}"]`);
     if (navEl) navEl.classList.add('active');
+    document.querySelectorAll('.bn-item').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === name)
+    );
     history.replaceState(null, '', '#' + name);
     if (name === 'apostas') loadApostas();
     if (name === 'painel')  loadPainel();
