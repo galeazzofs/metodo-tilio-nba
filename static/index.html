@@ -39,12 +39,12 @@
       --purple-dim:    rgba(8,145,178,0.1);
       --purple-border: rgba(8,145,178,0.28);
 
-      /* Wins → majorelle-blue  |  Losses → vintage-grape */
-      --green:         #623cea;
-      --green-dim:     rgba(98,60,234,0.08);
-      --green-border:  rgba(98,60,234,0.22);
+      /* Wins → green #16a34a  |  Losses → red #dc2626 */
+      --green:         #16a34a;
+      --green-dim:     rgba(22,163,74,0.1);
+      --green-border:  rgba(22,163,74,0.25);
 
-      --red:    #54426b;
+      --red:    #dc2626;
 
       /* Text */
       --text:   #54426b;
@@ -449,7 +449,7 @@
 
     .badge-running { background: var(--gold-dim);   color: var(--gold);   border: 1px solid var(--gold-border); }
     .badge-done    { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green-border); }
-    .badge-error   { background: rgba(244,63,94,.1); color: var(--red);   border: 1px solid rgba(244,63,94,.25); }
+    .badge-error   { background: rgba(220,38,38,0.1); color: var(--red);   border: 1px solid rgba(220,38,38,0.25); }
 
     .spinner {
       width: 9px; height: 9px;
@@ -674,8 +674,8 @@
       letter-spacing: 0.04em;
     }
 
-    .b-win  { background: var(--green-dim); color: var(--majorelle-blue); border: 1px solid var(--green-border); }
-    .b-loss { background: rgba(84,66,107,0.07); color: var(--vintage-grape); border: 1px solid rgba(84,66,107,0.2); }
+    .b-win  { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+    .b-loss { background: rgba(220,38,38,0.08); color: var(--red); border: 1px solid rgba(220,38,38,0.25); }
     .b-pend { background: rgba(217,119,6,0.08); color: var(--gold); border: 1px solid rgba(217,119,6,0.22); }
     .b-void { background: rgba(84,66,107,0.04); color: var(--muted); border: 1px solid var(--pearl-beige); }
 
@@ -708,8 +708,8 @@
 
     .t-date { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
     .t-num  { font-family: var(--font-mono); font-size: 12px; }
-    .t-pnl-pos  { color: var(--majorelle-blue); font-family: var(--font-mono); font-weight: 600; }
-    .t-pnl-neg  { color: var(--vintage-grape); font-family: var(--font-mono); font-weight: 600; }
+    .t-pnl-pos  { color: var(--green); font-family: var(--font-mono); font-weight: 600; }
+    .t-pnl-neg  { color: var(--red); font-family: var(--font-mono); font-weight: 600; }
     .t-pnl-zero { color: var(--muted); font-family: var(--font-mono); }
 
     /* Form panel (slide-in) */
@@ -795,8 +795,8 @@
     .bet-card:hover { border-color: rgba(84,66,107,0.25); box-shadow: 0 2px 12px rgba(84,66,107,0.07); }
 
     .bc-accent { width: 4px; flex-shrink: 0; }
-    .bc-ganhou   .bc-accent { background: var(--majorelle-blue); }
-    .bc-perdeu   .bc-accent { background: var(--vintage-grape); }
+    .bc-ganhou   .bc-accent { background: var(--green); }
+    .bc-perdeu   .bc-accent { background: var(--red); }
     .bc-pendente .bc-accent { background: var(--gold); }
     .bc-void     .bc-accent { background: var(--pearl-beige); }
 
