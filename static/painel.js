@@ -23,9 +23,10 @@ function ensurePlugins() {
       if (!chartArea) return;
       const ds = chart.data.datasets[0];
       const isPos = (ds._isPositive !== false);
-      const r = isPos ? 34 : 244, g = isPos ? 197 : 63, b = isPos ? 94 : 94;
+      // isPos → majorelle-blue  |  isNeg → vintage-grape
+      const r = isPos ? 98  : 84, g = isPos ? 60  : 66, b = isPos ? 234 : 107;
       const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-      gradient.addColorStop(0,   `rgba(${r},${g},${b},0.20)`);
+      gradient.addColorStop(0,   `rgba(${r},${g},${b},0.18)`);
       gradient.addColorStop(0.5, `rgba(${r},${g},${b},0.05)`);
       gradient.addColorStop(1,   `rgba(${r},${g},${b},0)`);
       ds.backgroundColor = gradient;
@@ -246,7 +247,7 @@ function renderTypesList(bets) {
   }
 
   const maxAbs = Math.max(...entries.map(([, v]) => Math.abs(v)), 1);
-  const dotColors = ['#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#06b6d4', '#f43f5e'];
+  const dotColors = ['#623cea', '#0891b2', '#d97706', '#8b5cf6', '#0d9488', '#54426b'];
 
   el.innerHTML = entries.map(([tipo, val], i) => {
     const pct   = (Math.abs(val) / maxAbs * 100).toFixed(1);
@@ -303,20 +304,20 @@ function calcStats(bets) {
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────
-const _GRID  = 'rgba(255,255,255,0.04)';
-const _TICK  = 'rgba(221,232,245,0.3)';
+const _GRID  = 'rgba(84,66,107,0.07)';
+const _TICK  = 'rgba(84,66,107,0.45)';
 const _MONO  = { family: '"IBM Plex Mono"', size: 10 };
 const _TT    = {
-  backgroundColor: 'rgba(8,11,22,0.96)',
-  borderColor: 'rgba(255,255,255,0.08)',
+  backgroundColor: '#ffffff',
+  borderColor: '#dbd5b2',
   borderWidth: 1,
-  titleColor: 'rgba(221,232,245,0.45)',
-  bodyColor: '#dde8f5',
+  titleColor: 'rgba(84,66,107,0.55)',
+  bodyColor: '#54426b',
   padding: 12,
   titleFont: { family: '"IBM Plex Mono"', size: 10 },
   bodyFont:  { family: '"IBM Plex Mono"', size: 12, weight: '500' },
   displayColors: false,
-  cornerRadius: 6,
+  cornerRadius: 8,
 };
 
 function drawCharts(bets, stats) {
@@ -340,20 +341,20 @@ function drawLineChart(bets) {
 
   const finalVal  = data.length > 0 ? data[data.length - 1] : 0;
   const isPositive = finalVal >= 0;
-  const lineColor  = isPositive ? '#22c55e' : '#f43f5e';
+  const lineColor  = isPositive ? '#623cea' : '#54426b';
 
   const ds = {
     label: 'P&L Acumulado',
     data,
     borderColor: lineColor,
-    backgroundColor: 'rgba(34,197,94,0.1)',
+    backgroundColor: isPositive ? 'rgba(98,60,234,0.08)' : 'rgba(84,66,107,0.06)',
     _isPositive: isPositive,
     fill: true,
     tension: 0.4,
     pointRadius: 0,
     pointHoverRadius: 5,
     pointHoverBackgroundColor: lineColor,
-    pointHoverBorderColor: 'rgba(6,8,15,0.9)',
+    pointHoverBorderColor: '#ffffff',
     pointHoverBorderWidth: 2,
     borderWidth: 2.5,
   };
@@ -381,7 +382,7 @@ function drawLineChart(bets) {
         x: {
           ticks: { color: _TICK, maxTicksLimit: 8, font: _MONO },
           grid:  { color: _GRID },
-          border: { color: 'rgba(255,255,255,0.06)' },
+          border: { color: 'rgba(84,66,107,0.1)' },
         },
         y: {
           ticks: {
@@ -389,7 +390,7 @@ function drawLineChart(bets) {
             callback: v => (v >= 0 ? '+' : '') + 'R$' + v.toFixed(0),
           },
           grid:  { color: _GRID },
-          border: { color: 'rgba(255,255,255,0.06)' },
+          border: { color: 'rgba(84,66,107,0.1)' },
         },
       },
     },
@@ -421,9 +422,10 @@ function drawBetsBarChart(bets, stats) {
   const maxVal = Math.max(...data, 1);
   const maxIdx = data.indexOf(maxVal);
   const bgColors = data.map((v, i) => {
-    if (i === maxIdx) return 'rgba(34,197,94,0.9)';
+    if (i === maxIdx) return 'rgba(98,60,234,0.85)';
     const t = v / maxVal;
-    return `rgba(34,${Math.round(100 + 97 * t)},${Math.round(60 + 34 * t)},${0.3 + t * 0.45})`;
+    // Gradient from pearl-beige → majorelle-blue tint based on value intensity
+    return `rgba(98,60,234,${0.18 + t * 0.52})`;
   });
 
   _chartTipo = new Chart(document.getElementById('chartTipo'), {
@@ -453,12 +455,12 @@ function drawBetsBarChart(bets, stats) {
         x: {
           ticks: { color: _TICK, font: _MONO, maxTicksLimit: 8 },
           grid:  { display: false },
-          border: { color: 'rgba(255,255,255,0.06)' },
+          border: { color: 'rgba(84,66,107,0.1)' },
         },
         y: {
           ticks: { color: _TICK, font: _MONO, stepSize: 1 },
           grid:  { color: _GRID },
-          border: { color: 'rgba(255,255,255,0.06)' },
+          border: { color: 'rgba(84,66,107,0.1)' },
         },
       },
     },
@@ -468,5 +470,5 @@ function drawBetsBarChart(bets, stats) {
 // ── Formatters ────────────────────────────────────────────────────────────
 function fmtMoney(v) {
   if (v == null) return '—';
-  return (v >= 0 ? '+' : '−') + 'R$ ' + Math.abs(v).toFixed(2);
+  return (v >= 0 ? '↑ ' : '↓ ') + 'R$ ' + Math.abs(v).toFixed(2);
 }

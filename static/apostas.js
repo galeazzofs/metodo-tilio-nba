@@ -221,16 +221,18 @@ function renderApostas() {
 // ── Bet card builder ─────────────────────────────────────────────────────
 function buildBetCard(b) {
   const BADGE = {
-    ganhou:   '<span class="b-badge b-win">Ganhou</span>',
-    perdeu:   '<span class="b-badge b-loss">Perdeu</span>',
+    ganhou:   '<span class="b-badge b-win">↑ Ganhou</span>',
+    perdeu:   '<span class="b-badge b-loss">↓ Perdeu</span>',
     pendente: '<span class="b-badge b-pend">Pendente</span>',
     void:     '<span class="b-badge b-void">Void</span>',
   };
 
   const pnlClass = b.lucro_prejuizo == null ? 't-pnl-zero'
                  : b.lucro_prejuizo >= 0    ? 't-pnl-pos' : 't-pnl-neg';
+  const pnlArrow = b.lucro_prejuizo == null ? ''
+                 : b.lucro_prejuizo >= 0    ? '↑ ' : '↓ ';
   const pnlText  = b.lucro_prejuizo == null ? '—'
-                 : (b.lucro_prejuizo >= 0 ? '+' : '') + 'R$ ' + Math.abs(b.lucro_prejuizo).toFixed(2);
+                 : pnlArrow + 'R$ ' + Math.abs(b.lucro_prejuizo).toFixed(2);
 
   return `
     <div class="bet-card bc-${escH(b.resultado)}">
