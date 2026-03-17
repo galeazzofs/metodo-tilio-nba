@@ -780,6 +780,82 @@
       display: flex; gap: 10px;
     }
 
+    /* ══════════════════════════════════════
+       APOSTAS — Bet cards
+    ══════════════════════════════════════ */
+    .bet-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .bet-card {
+      display: flex; overflow: hidden;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .bet-card:hover { border-color: rgba(255,255,255,0.12); }
+
+    .bc-accent { width: 3px; flex-shrink: 0; }
+    .bc-ganhou   .bc-accent { background: #22c55e; }
+    .bc-perdeu   .bc-accent { background: var(--red); }
+    .bc-pendente .bc-accent { background: var(--gold); }
+    .bc-void     .bc-accent { background: rgba(255,255,255,0.15); }
+
+    .bc-content { flex: 1; padding: 13px 16px; min-width: 0; }
+
+    .bc-row1 {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; gap: 12px; margin-bottom: 3px;
+    }
+
+    .bc-match {
+      font-family: var(--font-body); font-weight: 600;
+      font-size: 14px; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .bc-desc {
+      font-size: 12px; color: var(--soft);
+      margin-bottom: 10px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .bc-row3 {
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    }
+
+    .bc-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+
+    .bc-chip {
+      font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      padding: 2px 7px; border-radius: 3px; letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .bc-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .bc-pnl {
+      font-family: var(--font-mono); font-size: 13px;
+      font-weight: 600; white-space: nowrap;
+    }
+
+    .bc-edit {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 5px; padding: 4px 9px;
+      cursor: pointer; font-size: 13px; transition: all 0.15s;
+      line-height: 1;
+    }
+    .bc-edit:hover { border-color: rgba(255,255,255,0.22); color: var(--text); }
+
+    /* Delete button in form footer */
+    .btn-danger {
+      padding: 10px 14px; border-radius: 7px;
+      background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.3);
+      color: var(--red); font-family: var(--font-body); font-size: 12px;
+      font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-danger:hover { background: rgba(244,63,94,0.18); border-color: rgba(244,63,94,0.5); }
+
     /* KPI cards */
     .kpi-grid {
       display: grid;

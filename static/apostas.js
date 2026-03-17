@@ -2,6 +2,7 @@
 
 let _allBets = [];
 let _printModalOpen = false;
+let _editingBetId = null;
 
 // Global paste listener — captures Ctrl+V when print modal is open
 document.addEventListener('paste', (e) => {
@@ -33,48 +34,34 @@ async function loadApostas() {
 function renderApostas() {
   const container = document.getElementById('tab-apostas');
 
-  const q   = (document.getElementById('filtroTexto')?.value   || '').toLowerCase();
+  const q   = (document.getElementById('filtroTexto')?.value    || '').toLowerCase();
   const res = (document.getElementById('filtroResultado')?.value || 'todos');
-  const de  = document.getElementById('filtroDe')?.value  || '';
-  const ate = document.getElementById('filtroAte')?.value || '';
+  const de  =  document.getElementById('filtroDe')?.value  || '';
+  const ate =  document.getElementById('filtroAte')?.value || '';
 
   let bets = [..._allBets].sort((a, b) => b.data.localeCompare(a.data));
-  if (q)   bets = bets.filter(b => b.partida?.toLowerCase().includes(q) || b.descricao?.toLowerCase().includes(q));
+  if (q)           bets = bets.filter(b => b.partida?.toLowerCase().includes(q) || b.descricao?.toLowerCase().includes(q));
   if (res !== 'todos') bets = bets.filter(b => b.resultado === res);
-  if (de)  bets = bets.filter(b => b.data >= de);
-  if (ate) bets = bets.filter(b => b.data <= ate);
+  if (de)          bets = bets.filter(b => b.data >= de);
+  if (ate)         bets = bets.filter(b => b.data <= ate);
 
-  const BADGE = {
-    ganhou:   '<span class="b-badge b-win">Ganhou</span>',
-    perdeu:   '<span class="b-badge b-loss">Perdeu</span>',
-    pendente: '<span class="b-badge b-pend">Pendente</span>',
-    void:     '<span class="b-badge b-void">Void</span>',
-  };
-
-  const pnlClass = v => v == null ? 't-pnl-zero' : v >= 0 ? 't-pnl-pos' : 't-pnl-neg';
-  const pnlText  = v => v == null ? '—' : (v >= 0 ? '+' : '') + 'R$ ' + Math.abs(v).toFixed(2);
-
-  const rows = bets.length === 0
-    ? `<tr><td colspan="7" style="text-align:center;padding:52px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em">Nenhuma aposta encontrada.</td></tr>`
-    : bets.map(b => `
-        <tr>
-          <td class="t-date">${escH(b.data)}</td>
-          <td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(b.partida)}</td>
-          <td style="color:var(--soft);font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(b.descricao)}">${escH(b.descricao)}</td>
-          <td class="t-num" style="text-align:right">${b.odds?.toFixed(2) ?? '—'}</td>
-          <td class="t-num" style="text-align:right;white-space:nowrap">R$ ${b.stake?.toFixed(2) ?? '—'}</td>
-          <td>${BADGE[b.resultado] ?? escH(b.resultado)}</td>
-          <td class="${pnlClass(b.lucro_prejuizo)}" style="text-align:right;white-space:nowrap">${pnlText(b.lucro_prejuizo)}</td>
-        </tr>`).join('');
+  const betCards = bets.length === 0
+    ? `<div style="text-align:center;padding:60px 24px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em">
+         Nenhuma aposta encontrada.
+       </div>`
+    : bets.map(buildBetCard).join('');
 
   const emptyState = _allBets.length === 0 ? `
     <div style="text-align:center;padding:80px 24px">
       <div style="font-size:44px;margin-bottom:16px;opacity:0.4">◎</div>
-      <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;line-height:1.8">NENHUMA APOSTA REGISTRADA<br>Importe ou adicione manualmente.</p>
+      <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;line-height:1.8">
+        NENHUMA APOSTA REGISTRADA<br>Importe ou adicione manualmente.
+      </p>
     </div>` : '';
 
   container.innerHTML = `
     <div class="pg-wrap">
+
       <!-- Header -->
       <div class="pg-hdr">
         <div>
@@ -93,7 +80,8 @@ function renderApostas() {
 
       <!-- Filters -->
       <div class="filters-row">
-        <input class="f-input" style="flex:1;min-width:200px" id="filtroTexto" placeholder="Buscar partida ou descrição…" oninput="renderApostas()" />
+        <input class="f-input" style="flex:1;min-width:160px" id="filtroTexto"
+               placeholder="Buscar partida ou descrição…" oninput="renderApostas()" />
         <select class="f-input" id="filtroResultado" onchange="renderApostas()">
           <option value="todos">Todos</option>
           <option value="ganhou">Ganhou</option>
@@ -105,78 +93,79 @@ function renderApostas() {
         <input type="date" class="f-input" id="filtroAte" onchange="renderApostas()" />
       </div>
 
-      ${emptyState || `
-      <!-- Table -->
-      <div class="t-wrap">
-        <table class="t-table">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Partida</th>
-              <th>Descrição</th>
-              <th class="r">Odds</th>
-              <th class="r">Stake</th>
-              <th>Resultado</th>
-              <th class="r">L/P</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`}
+      <!-- Bet cards -->
+      ${emptyState || `<div class="bet-list">${betCards}</div>`}
+
     </div>
 
-    <!-- Print import modal -->
-    <div id="printModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:300;backdrop-filter:blur(6px);align-items:center;justify-content:center" onclick="fecharPrintModal()">
-      <div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;padding:32px;margin:24px;box-shadow:0 28px 80px rgba(0,0,0,0.6);animation:slideIn 0.2s ease">
+    <!-- ── Print import modal ── -->
+    <div id="printModalOverlay"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:300;
+                backdrop-filter:blur(6px);align-items:center;justify-content:center"
+         onclick="fecharPrintModal()">
+      <div onclick="event.stopPropagation()"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:14px;
+                  width:100%;max-width:480px;padding:32px;margin:24px;
+                  box-shadow:0 28px 80px rgba(0,0,0,0.6);animation:slideIn 0.2s ease">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-          <span style="font-family:var(--font-brand);font-weight:800;font-size:17px;letter-spacing:0.05em">IMPORTAR POR PRINT</span>
+          <span style="font-family:var(--font-brand);font-weight:800;font-size:17px;letter-spacing:0.05em">
+            IMPORTAR POR PRINT
+          </span>
           <button class="btn-close" onclick="fecharPrintModal()">×</button>
         </div>
-
-        <!-- Paste zone -->
-        <div id="pasteZone"
-          tabindex="0"
-          onclick="this.focus()"
-          style="border:2px dashed var(--border);border-radius:10px;padding:40px 24px;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;outline:none;position:relative"
-          onfocus="this.style.borderColor='rgba(198,241,53,0.5)';this.style.background='rgba(198,241,53,0.03)'"
-          onblur="this.style.borderColor='var(--border)';this.style.background=''"
-        >
+        <div id="pasteZone" tabindex="0" onclick="this.focus()"
+             style="border:2px dashed var(--border);border-radius:10px;padding:40px 24px;
+                    text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;
+                    outline:none;position:relative"
+             onfocus="this.style.borderColor='rgba(198,241,53,0.5)';this.style.background='rgba(198,241,53,0.03)'"
+             onblur="this.style.borderColor='var(--border)';this.style.background=''">
           <div style="font-size:32px;margin-bottom:12px;opacity:0.5">📋</div>
-          <div style="font-family:var(--font-brand);font-weight:700;font-size:15px;letter-spacing:0.05em;color:var(--text)">Ctrl+V para colar screenshot</div>
-          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:0.06em">Clique aqui, depois cole a imagem</div>
+          <div style="font-family:var(--font-brand);font-weight:700;font-size:15px;letter-spacing:0.05em;color:var(--text)">
+            Ctrl+V para colar screenshot
+          </div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:0.06em">
+            Clique aqui, depois cole a imagem
+          </div>
           <div id="pastePreview" style="margin-top:16px;display:none">
-            <img id="pastePreviewImg" style="max-width:100%;max-height:160px;border-radius:6px;border:1px solid var(--border)" />
-            <div style="font-family:var(--font-mono);font-size:10px;color:var(--green);margin-top:8px;letter-spacing:0.06em" id="pastePreviewLabel">Imagem capturada ✓</div>
+            <img id="pastePreviewImg"
+                 style="max-width:100%;max-height:160px;border-radius:6px;border:1px solid var(--border)" />
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--green);margin-top:8px;
+                        letter-spacing:0.06em" id="pastePreviewLabel">Imagem capturada ✓</div>
           </div>
         </div>
-
         <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
           <div style="flex:1;height:1px;background:var(--border)"></div>
           <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.1em">OU</span>
           <div style="flex:1;height:1px;background:var(--border)"></div>
         </div>
-
-        <!-- File upload -->
-        <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:border-color 0.15s,background 0.15s;font-size:13px;font-weight:600;color:var(--soft)"
+        <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;
+                      border:1px solid var(--border);border-radius:8px;cursor:pointer;
+                      transition:border-color 0.15s,background 0.15s;font-size:13px;
+                      font-weight:600;color:var(--soft)"
                onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';this.style.background='rgba(255,255,255,0.03)'"
                onmouseout="this.style.borderColor='var(--border)';this.style.background=''">
           ↑ Escolher arquivo
           <input type="file" accept="image/*" style="display:none" onchange="importarPrintFromInput(this)" />
         </label>
-
-        <div id="printStatus" style="margin-top:16px;min-height:18px;text-align:center;font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.06em"></div>
+        <div id="printStatus"
+             style="margin-top:16px;min-height:18px;text-align:center;font-family:var(--font-mono);
+                    font-size:11px;color:var(--muted);letter-spacing:0.06em"></div>
       </div>
     </div>
 
-    <!-- Form panel overlay -->
-    <div id="formOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:198;backdrop-filter:blur(4px)" onclick="fecharFormulario()"></div>
+    <!-- ── Form panel overlay ── -->
+    <div id="formOverlay"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);
+                z-index:198;backdrop-filter:blur(4px)"
+         onclick="fecharFormulario()"></div>
 
-    <!-- Form panel -->
-    <div id="formPanel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:400px;max-width:100vw;
-         background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;z-index:199;
-         display:none;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,0.45)">
+    <!-- ── Form panel ── -->
+    <div id="formPanel"
+         style="display:none;position:fixed;top:0;right:0;bottom:0;width:400px;max-width:100vw;
+                background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;
+                z-index:199;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,0.45)">
       <div class="fp-hdr">
-        <span class="fp-title">NOVA APOSTA</span>
+        <span class="fp-title" id="fpTitle">NOVA APOSTA</span>
         <button class="btn-close" onclick="fecharFormulario()">×</button>
       </div>
       <div class="fp-body">
@@ -218,32 +207,114 @@ function renderApostas() {
         </select>
       </div>
       <div class="fp-footer">
-        <button class="btn-outline" style="flex:1" onclick="fecharFormulario()">Cancelar</button>
-        <button class="btn-primary" style="flex:2" onclick="salvarAposta()">Salvar Aposta</button>
+        <button class="btn-danger" id="btnExcluir" style="display:none" onclick="excluirAposta()">
+          🗑 Excluir
+        </button>
+        <button class="btn-outline" onclick="fecharFormulario()" style="flex:1">Cancelar</button>
+        <button class="btn-primary" id="btnSalvar" onclick="salvarAposta()" style="flex:2">
+          Salvar Aposta
+        </button>
       </div>
     </div>`;
-
-  // Set today's date on data field
-  const dataInput = document.getElementById('formData');
-  if (dataInput && !dataInput.value) {
-    dataInput.value = new Date().toISOString().slice(0, 10);
-  }
 }
 
+// ── Bet card builder ─────────────────────────────────────────────────────
+function buildBetCard(b) {
+  const BADGE = {
+    ganhou:   '<span class="b-badge b-win">Ganhou</span>',
+    perdeu:   '<span class="b-badge b-loss">Perdeu</span>',
+    pendente: '<span class="b-badge b-pend">Pendente</span>',
+    void:     '<span class="b-badge b-void">Void</span>',
+  };
+
+  const pnlClass = b.lucro_prejuizo == null ? 't-pnl-zero'
+                 : b.lucro_prejuizo >= 0    ? 't-pnl-pos' : 't-pnl-neg';
+  const pnlText  = b.lucro_prejuizo == null ? '—'
+                 : (b.lucro_prejuizo >= 0 ? '+' : '') + 'R$ ' + Math.abs(b.lucro_prejuizo).toFixed(2);
+
+  return `
+    <div class="bet-card bc-${escH(b.resultado)}">
+      <div class="bc-accent"></div>
+      <div class="bc-content">
+        <div class="bc-row1">
+          <span class="bc-match">${escH(b.partida)}</span>
+          ${BADGE[b.resultado] ?? `<span class="b-badge b-void">${escH(b.resultado)}</span>`}
+        </div>
+        <div class="bc-desc" title="${escH(b.descricao)}">${escH(b.descricao) || '—'}</div>
+        <div class="bc-row3">
+          <div class="bc-chips">
+            <span class="bc-chip">${escH(b.tipo_aposta || 'Outro')}</span>
+            <span class="bc-chip">@ ${b.odds?.toFixed(2) ?? '—'}</span>
+            <span class="bc-chip">R$ ${b.stake?.toFixed(2) ?? '—'}</span>
+            <span class="bc-chip">${escH(b.data)}</span>
+          </div>
+          <div class="bc-right">
+            <span class="bc-pnl ${pnlClass}">${pnlText}</span>
+            <button class="bc-edit" onclick="editarAposta('${escH(b.bet_id)}')">✎</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Form panel controls ──────────────────────────────────────────────────
 function abrirFormulario() {
-  const panel = document.getElementById('formPanel');
-  const overlay = document.getElementById('formOverlay');
-  if (panel)   { panel.style.display = 'flex'; }
-  if (overlay) { overlay.style.display = 'block'; }
+  _editingBetId = null;
+  const title = document.getElementById('fpTitle');
+  if (title) title.textContent = 'NOVA APOSTA';
+  const btnEx = document.getElementById('btnExcluir');
+  if (btnEx) btnEx.style.display = 'none';
+  const btnSv = document.getElementById('btnSalvar');
+  if (btnSv) btnSv.textContent = 'Salvar Aposta';
+
+  // Reset fields
+  ['formPartida', 'formDescricao', 'formOdds', 'formStake'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const tipo = document.getElementById('formTipo');
+  if (tipo) tipo.value = 'Vencedor';
+  const result = document.getElementById('formResultado');
+  if (result) result.value = 'pendente';
+  const data = document.getElementById('formData');
+  if (data) data.value = new Date().toISOString().slice(0, 10);
+
+  document.getElementById('formPanel').style.display = 'flex';
+  document.getElementById('formOverlay').style.display = 'block';
+}
+
+function editarAposta(betId) {
+  const bet = _allBets.find(b => b.bet_id === betId);
+  if (!bet) return;
+
+  _editingBetId = betId;
+  const title = document.getElementById('fpTitle');
+  if (title) title.textContent = 'EDITAR APOSTA';
+  const btnEx = document.getElementById('btnExcluir');
+  if (btnEx) btnEx.style.display = 'block';
+  const btnSv = document.getElementById('btnSalvar');
+  if (btnSv) btnSv.textContent = 'Salvar Alterações';
+
+  // Fill fields
+  document.getElementById('formPartida').value  = bet.partida   || '';
+  document.getElementById('formDescricao').value = bet.descricao || '';
+  document.getElementById('formTipo').value       = bet.tipo_aposta || 'Outro';
+  document.getElementById('formOdds').value       = bet.odds  ?? '';
+  document.getElementById('formStake').value      = bet.stake ?? '';
+  document.getElementById('formData').value       = bet.data  || '';
+  document.getElementById('formResultado').value  = bet.resultado || 'pendente';
+
+  document.getElementById('formPanel').style.display = 'flex';
+  document.getElementById('formOverlay').style.display = 'block';
 }
 
 function fecharFormulario() {
-  const panel = document.getElementById('formPanel');
-  const overlay = document.getElementById('formOverlay');
-  if (panel)   { panel.style.display = 'none'; }
-  if (overlay) { overlay.style.display = 'none'; }
+  _editingBetId = null;
+  document.getElementById('formPanel').style.display   = 'none';
+  document.getElementById('formOverlay').style.display = 'none';
 }
 
+// ── Save (create or update) ───────────────────────────────────────────────
 async function salvarAposta() {
   const body = {
     partida:     document.getElementById('formPartida').value,
@@ -254,28 +325,55 @@ async function salvarAposta() {
     data:        document.getElementById('formData').value,
     resultado:   document.getElementById('formResultado').value,
   };
-  const res = await authFetch('/api/bets', {
-    method: 'POST',
+
+  const url    = _editingBetId ? `/api/bets/${_editingBetId}` : '/api/bets';
+  const method = _editingBetId ? 'PUT' : 'POST';
+
+  const res = await authFetch(url, {
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
   if (res.ok) {
     const bet = await res.json();
-    _allBets.unshift(bet);
+    if (_editingBetId) {
+      const idx = _allBets.findIndex(b => b.bet_id === _editingBetId);
+      if (idx !== -1) _allBets[idx] = bet; else _allBets.unshift(bet);
+    } else {
+      _allBets.unshift(bet);
+    }
+    const msg = _editingBetId ? '✅ Aposta atualizada!' : '✅ Aposta adicionada!';
     fecharFormulario();
     renderApostas();
-    showToast('✅ Aposta adicionada!');
+    showToast(msg);
   } else {
     showToast('❌ Erro ao salvar aposta');
   }
 }
 
+// ── Delete ────────────────────────────────────────────────────────────────
+async function excluirAposta() {
+  if (!_editingBetId) return;
+  if (!confirm('Excluir esta aposta? Esta ação não pode ser desfeita.')) return;
+
+  const res = await authFetch(`/api/bets/${_editingBetId}`, { method: 'DELETE' });
+  if (res.ok || res.status === 204) {
+    _allBets = _allBets.filter(b => b.bet_id !== _editingBetId);
+    fecharFormulario();
+    renderApostas();
+    showToast('🗑 Aposta excluída');
+  } else {
+    showToast('❌ Erro ao excluir aposta');
+  }
+}
+
+// ── Print / CSV import ────────────────────────────────────────────────────
 function abrirPrintModal() {
   const modal = document.getElementById('printModalOverlay');
   if (!modal) return;
   modal.style.display = 'flex';
   _printModalOpen = true;
-  // Auto-focus paste zone after a tick
   setTimeout(() => document.getElementById('pasteZone')?.focus(), 60);
 }
 
@@ -284,7 +382,6 @@ function fecharPrintModal() {
   if (!modal) return;
   modal.style.display = 'none';
   _printModalOpen = false;
-  // Reset preview
   const preview = document.getElementById('pastePreview');
   if (preview) preview.style.display = 'none';
   const status = document.getElementById('printStatus');
@@ -293,8 +390,6 @@ function fecharPrintModal() {
 
 async function importarPrintFile(file) {
   const status = document.getElementById('printStatus');
-
-  // Show preview
   const preview = document.getElementById('pastePreview');
   const previewImg = document.getElementById('pastePreviewImg');
   if (preview && previewImg) {
@@ -306,7 +401,6 @@ async function importarPrintFile(file) {
   const form = new FormData();
   form.append('file', file);
   const res = await authFetch('/api/bets/import-screenshot', { method: 'POST', body: form });
-
   if (res.ok) {
     const data = await res.json();
     fecharPrintModal();
@@ -340,7 +434,6 @@ async function importarCSV(input) {
   }
   input.value = '';
 }
-
 
 function escH(str) {
   return String(str ?? '').replace(/[&<>"']/g, c =>
