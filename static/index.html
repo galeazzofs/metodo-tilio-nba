@@ -1091,56 +1091,56 @@
     .kv-text  { color: var(--text); }
     .chart-full { margin-bottom: 14px; }
 
-  /* ─── Card entrance animation ────────────────────────────── */
-  .anim-enter {
-    animation: fadeUp 0.35s ease both;
-    animation-delay: calc(var(--i, 0) * 60ms);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .anim-enter { animation: none; }
-  }
+    /* ─── Card entrance animation ──────────────────────────── */
+    .anim-enter {
+      animation: fadeUp 0.35s ease both;
+      animation-delay: calc(var(--i, 0) * 60ms);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .anim-enter { animation: none; }
+    }
 
-  /* ─── Mobile bottom nav ──────────────────────────────────── */
-  /* Note: flex properties declared here take effect when display:flex
-     is applied by the media query. display:none hides this on desktop. */
-  .bottom-nav {
-    display: none;
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    height: calc(64px + env(safe-area-inset-bottom, 0px));
-    background: var(--vintage-grape);
-    border-top: 1px solid rgba(255,255,255,0.1);
-    z-index: 200;
-    align-items: flex-start;
-    justify-content: space-around;
-    padding: 0 8px;
-  }
-  .bn-item {
-    display: flex; flex-direction: column; align-items: center;
-    gap: 3px;
-    background: none; border: none; cursor: pointer;
-    color: rgba(255,255,255,0.5);
-    font-family: var(--font-body); font-size: 11px; font-weight: 500;
-    padding: 6px 16px; border-radius: 10px;
-    transition: color var(--transition);
-    flex: 1;
-  }
-  .bn-item svg { width: 20px; height: 20px; }
-  .bn-item.active { color: #ffffff; }
-  .bn-item.active svg { stroke: var(--majorelle-blue); }
+    /* ─── Mobile bottom nav ────────────────────────────────── */
+    /* display:none on desktop; flex properties activate via 960px query */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 64px;
+      background: var(--vintage-grape);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      z-index: 200;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .bn-item {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 3px;
+      background: none; border: none; cursor: pointer;
+      color: rgba(255,255,255,0.5);
+      font-family: var(--font-body); font-size: 11px; font-weight: 500;
+      padding: 6px 16px; border-radius: 10px;
+      transition: color var(--transition);
+      flex: 1;
+    }
+    .bn-item svg { width: 20px; height: 20px; }
+    .bn-item.active { color: #ffffff; }
+    .bn-item.active svg { stroke: var(--majorelle-blue); }
 
-  /* ─── Mobile breakpoint ≤ 960px ──────────────────────────── */
-  @media (max-width: 960px) {
-    .sidebar          { display: none; }
-    #appShell         { flex-direction: column; }
-    .bottom-nav       { display: flex; }
-    .main-scroll      { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-    .pg-wrap          { padding: 16px; }
-    .kpi-grid         { grid-template-columns: 1fr 1fr; }
-    .dash-kpi-row     { grid-template-columns: 1fr 1fr; }
-    .charts-grid      { grid-template-columns: 1fr; }
-    .dash-bottom      { grid-template-columns: 1fr; }
-  }
+    /* ─── Mobile breakpoint ≤ 960px ────────────────────────── */
+    @media (max-width: 960px) {
+      .sidebar          { display: none; }
+      #appShell         { flex-direction: column; }
+      .bottom-nav       { display: flex; }
+      .main-scroll      { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+      .pg-wrap          { padding: 16px; }
+      .kpi-grid         { grid-template-columns: 1fr 1fr; }
+      .dash-kpi-row     { grid-template-columns: 1fr 1fr; }
+      .charts-grid      { grid-template-columns: 1fr; }
+      .dash-bottom      { grid-template-columns: 1fr; }
+    }
 
   </style>
 </head>
