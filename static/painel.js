@@ -422,10 +422,9 @@ function drawBetsBarChart(bets, stats) {
   const maxVal = Math.max(...data, 1);
   const maxIdx = data.indexOf(maxVal);
   const bgColors = data.map((v, i) => {
-    if (i === maxIdx) return 'rgba(84,66,107,0.85)';
+    if (i === maxIdx) return 'rgba(98,60,234,0.85)';
     const t = v / maxVal;
-    // vintage-grape gradient by intensity
-    return `rgba(84,66,107,${0.2 + t * 0.5})`;
+    return `rgba(98,60,234,${0.18 + t * 0.52})`;
   });
 
   _chartTipo = new Chart(document.getElementById('chartTipo'), {
