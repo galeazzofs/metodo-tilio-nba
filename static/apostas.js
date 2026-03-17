@@ -1,6 +1,20 @@
 // apostas.js — Aba Minhas Apostas
 
 let _allBets = [];
+let _printModalOpen = false;
+
+// Global paste listener — captures Ctrl+V when print modal is open
+document.addEventListener('paste', (e) => {
+  if (!_printModalOpen) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) { importarPrintFile(file); return; }
+    }
+  }
+});
 
 async function loadApostas() {
   const container = document.getElementById('tab-apostas');
@@ -73,10 +87,7 @@ function renderApostas() {
             ↑ CSV
             <input type="file" accept=".csv" style="display:none" onchange="importarCSV(this)" />
           </label>
-          <label class="btn-outline" style="cursor:pointer">
-            ◈ Print IA
-            <input type="file" accept="image/*" style="display:none" onchange="importarPrint(this)" />
-          </label>
+          <button class="btn-outline" onclick="abrirPrintModal()">◈ Print IA</button>
         </div>
       </div>
 
@@ -112,6 +123,49 @@ function renderApostas() {
           <tbody>${rows}</tbody>
         </table>
       </div>`}
+    </div>
+
+    <!-- Print import modal -->
+    <div id="printModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:300;backdrop-filter:blur(6px);align-items:center;justify-content:center" onclick="fecharPrintModal()">
+      <div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:480px;padding:32px;margin:24px;box-shadow:0 28px 80px rgba(0,0,0,0.6);animation:slideIn 0.2s ease">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+          <span style="font-family:var(--font-brand);font-weight:800;font-size:17px;letter-spacing:0.05em">IMPORTAR POR PRINT</span>
+          <button class="btn-close" onclick="fecharPrintModal()">×</button>
+        </div>
+
+        <!-- Paste zone -->
+        <div id="pasteZone"
+          tabindex="0"
+          onclick="this.focus()"
+          style="border:2px dashed var(--border);border-radius:10px;padding:40px 24px;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;outline:none;position:relative"
+          onfocus="this.style.borderColor='rgba(198,241,53,0.5)';this.style.background='rgba(198,241,53,0.03)'"
+          onblur="this.style.borderColor='var(--border)';this.style.background=''"
+        >
+          <div style="font-size:32px;margin-bottom:12px;opacity:0.5">📋</div>
+          <div style="font-family:var(--font-brand);font-weight:700;font-size:15px;letter-spacing:0.05em;color:var(--text)">Ctrl+V para colar screenshot</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:0.06em">Clique aqui, depois cole a imagem</div>
+          <div id="pastePreview" style="margin-top:16px;display:none">
+            <img id="pastePreviewImg" style="max-width:100%;max-height:160px;border-radius:6px;border:1px solid var(--border)" />
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--green);margin-top:8px;letter-spacing:0.06em" id="pastePreviewLabel">Imagem capturada ✓</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:0.1em">OU</span>
+          <div style="flex:1;height:1px;background:var(--border)"></div>
+        </div>
+
+        <!-- File upload -->
+        <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:border-color 0.15s,background 0.15s;font-size:13px;font-weight:600;color:var(--soft)"
+               onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';this.style.background='rgba(255,255,255,0.03)'"
+               onmouseout="this.style.borderColor='var(--border)';this.style.background=''">
+          ↑ Escolher arquivo
+          <input type="file" accept="image/*" style="display:none" onchange="importarPrintFromInput(this)" />
+        </label>
+
+        <div id="printStatus" style="margin-top:16px;min-height:18px;text-align:center;font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.06em"></div>
+      </div>
     </div>
 
     <!-- Form panel overlay -->
@@ -216,6 +270,60 @@ async function salvarAposta() {
   }
 }
 
+function abrirPrintModal() {
+  const modal = document.getElementById('printModalOverlay');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  _printModalOpen = true;
+  // Auto-focus paste zone after a tick
+  setTimeout(() => document.getElementById('pasteZone')?.focus(), 60);
+}
+
+function fecharPrintModal() {
+  const modal = document.getElementById('printModalOverlay');
+  if (!modal) return;
+  modal.style.display = 'none';
+  _printModalOpen = false;
+  // Reset preview
+  const preview = document.getElementById('pastePreview');
+  if (preview) preview.style.display = 'none';
+  const status = document.getElementById('printStatus');
+  if (status) status.textContent = '';
+}
+
+async function importarPrintFile(file) {
+  const status = document.getElementById('printStatus');
+
+  // Show preview
+  const preview = document.getElementById('pastePreview');
+  const previewImg = document.getElementById('pastePreviewImg');
+  if (preview && previewImg) {
+    previewImg.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+  }
+  if (status) status.textContent = 'Analisando com IA...';
+
+  const form = new FormData();
+  form.append('file', file);
+  const res = await authFetch('/api/bets/import-screenshot', { method: 'POST', body: form });
+
+  if (res.ok) {
+    const data = await res.json();
+    fecharPrintModal();
+    showToast(`✅ ${data.importadas} apostas importadas, ${data.ignoradas} ignoradas`);
+    await loadApostas();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    if (status) status.textContent = '❌ ' + (err.detail || 'Erro ao importar print');
+  }
+}
+
+function importarPrintFromInput(input) {
+  const file = input.files[0];
+  if (file) importarPrintFile(file);
+  input.value = '';
+}
+
 async function importarCSV(input) {
   const file = input.files[0];
   if (!file) return;
@@ -233,23 +341,6 @@ async function importarCSV(input) {
   input.value = '';
 }
 
-async function importarPrint(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append('file', file);
-  showToast('⏳ Analisando print com IA...');
-  const res = await authFetch('/api/bets/import-screenshot', { method: 'POST', body: form });
-  if (res.ok) {
-    const data = await res.json();
-    showToast(`✅ ${data.importadas} apostas importadas, ${data.ignoradas} ignoradas`);
-    await loadApostas();
-  } else {
-    const err = await res.json().catch(() => ({}));
-    showToast('❌ Erro ao importar print: ' + (err.detail || res.status));
-  }
-  input.value = '';
-}
 
 function escH(str) {
   return String(str ?? '').replace(/[&<>"']/g, c =>
