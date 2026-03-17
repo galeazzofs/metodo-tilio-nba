@@ -23,8 +23,8 @@ function ensurePlugins() {
       if (!chartArea) return;
       const ds = chart.data.datasets[0];
       const isPos = (ds._isPositive !== false);
-      // isPos → majorelle-blue  |  isNeg → vintage-grape
-      const r = isPos ? 98  : 84, g = isPos ? 60  : 66, b = isPos ? 234 : 107;
+      // isPos → green #16a34a  |  isNeg → red #dc2626
+      const r = isPos ? 22  : 220, g = isPos ? 163 : 38, b = isPos ? 74  : 38;
       const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
       gradient.addColorStop(0,   `rgba(${r},${g},${b},0.18)`);
       gradient.addColorStop(0.5, `rgba(${r},${g},${b},0.05)`);
@@ -341,13 +341,13 @@ function drawLineChart(bets) {
 
   const finalVal  = data.length > 0 ? data[data.length - 1] : 0;
   const isPositive = finalVal >= 0;
-  const lineColor  = isPositive ? '#623cea' : '#54426b';
+  const lineColor  = isPositive ? '#16a34a' : '#dc2626';
 
   const ds = {
     label: 'P&L Acumulado',
     data,
     borderColor: lineColor,
-    backgroundColor: isPositive ? 'rgba(98,60,234,0.08)' : 'rgba(84,66,107,0.06)',
+    backgroundColor: isPositive ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.06)',
     _isPositive: isPositive,
     fill: true,
     tension: 0.4,
@@ -422,10 +422,10 @@ function drawBetsBarChart(bets, stats) {
   const maxVal = Math.max(...data, 1);
   const maxIdx = data.indexOf(maxVal);
   const bgColors = data.map((v, i) => {
-    if (i === maxIdx) return 'rgba(98,60,234,0.85)';
+    if (i === maxIdx) return 'rgba(84,66,107,0.85)';
     const t = v / maxVal;
-    // Gradient from pearl-beige → majorelle-blue tint based on value intensity
-    return `rgba(98,60,234,${0.18 + t * 0.52})`;
+    // vintage-grape gradient by intensity
+    return `rgba(84,66,107,${0.2 + t * 0.5})`;
   });
 
   _chartTipo = new Chart(document.getElementById('chartTipo'), {
