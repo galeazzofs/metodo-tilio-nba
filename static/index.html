@@ -1382,6 +1382,26 @@
     }
   }
 
+  function animateTab(tabId) {
+    const SELECTORS = {
+      painel:  '.dash-kpi, .dash-chart-card, .chart-box',
+      apostas: '.bet-card',
+      analise: '.card',
+    };
+    const sel = SELECTORS[tabId];
+    if (!sel) return;
+    const panel = document.getElementById('tab-' + tabId);
+    if (!panel) return;
+    panel.querySelectorAll('.anim-enter').forEach(el => el.classList.remove('anim-enter'));
+    requestAnimationFrame(() => {
+      const els = [...panel.querySelectorAll(sel)].slice(0, 8);
+      els.forEach((el, i) => {
+        el.style.setProperty('--i', i);
+        el.classList.add('anim-enter');
+      });
+    });
+  }
+
   function switchTab(name) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1394,6 +1414,7 @@
     history.replaceState(null, '', '#' + name);
     if (name === 'apostas') loadApostas();
     if (name === 'painel')  loadPainel();
+    animateTab(name);
   }
 
   onAuthChange(user => {
