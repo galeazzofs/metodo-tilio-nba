@@ -856,7 +856,7 @@
     ══════════════════════════════════════ */
     .dash-kpi-row {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 12px; margin-bottom: 14px;
     }
 
@@ -1169,14 +1169,27 @@
   }
 
   const AUTH_ERRORS = {
-    'auth/invalid-email':        'Email inválido.',
-    'auth/user-not-found':       'Email ou senha inválidos.',
-    'auth/wrong-password':       'Email ou senha inválidos.',
-    'auth/invalid-credential':   'Email ou senha inválidos.',
-    'auth/email-already-in-use': 'Este email já está cadastrado.',
-    'auth/weak-password':        'Senha muito fraca (mínimo 6 caracteres).',
-    'auth/too-many-requests':    'Muitas tentativas. Tente novamente mais tarde.',
+    'auth/invalid-email':           'Email inválido.',
+    'auth/user-not-found':          'Email ou senha inválidos.',
+    'auth/wrong-password':          'Email ou senha inválidos.',
+    'auth/invalid-credential':      'Email ou senha inválidos.',
+    'auth/email-already-in-use':    'Este email já está cadastrado.',
+    'auth/weak-password':           'Senha muito fraca (mínimo 6 caracteres).',
+    'auth/too-many-requests':       'Muitas tentativas. Tente novamente mais tarde.',
+    'auth/operation-not-allowed':   'Login com Google não habilitado no Firebase Console.',
+    'auth/unauthorized-domain':     'Domínio não autorizado no Firebase Console. Adicione em Authentication → Settings → Authorized domains.',
+    'auth/popup-blocked':           'Popup bloqueado pelo navegador. Tente novamente.',
+    'auth/network-request-failed':  'Falha de rede. Verifique sua conexão.',
+    'auth/internal-error':          'Erro interno do Firebase. Verifique a configuração do projeto.',
   };
+
+  // Exibe erro de redirect Google (popup bloqueado → redirect)
+  if (window._googleRedirectError) {
+    const errEl = document.getElementById('authError');
+    if (errEl) errEl.textContent = AUTH_ERRORS[window._googleRedirectError.code]
+      || `Erro Google: ${window._googleRedirectError.code}`;
+    window._googleRedirectError = null;
+  }
 
   async function handleAuth() {
     const email    = document.getElementById('authEmail').value.trim();
@@ -1211,7 +1224,7 @@
       await signInWithGoogle();
     } catch (e) {
       if (e.code !== 'auth/popup-closed-by-user') {
-        errEl.textContent = AUTH_ERRORS[e.code] || 'Erro ao entrar com Google.';
+        errEl.textContent = AUTH_ERRORS[e.code] || `Erro ao entrar com Google (${e.code || e.message}).`;
       }
     } finally {
       btn.disabled = false;

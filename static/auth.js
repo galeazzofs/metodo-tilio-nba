@@ -22,11 +22,25 @@ async function signOut() {
   await auth.signOut();
 }
 
-/** Entra com Google (popup). Lança exceção em caso de falha. */
+/** Entra com Google. Tenta popup; cai para redirect se popup bloqueado. */
 async function signInWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
-  await auth.signInWithPopup(provider);
+  try {
+    await auth.signInWithPopup(provider);
+  } catch (e) {
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
+      // Popup foi bloqueado pelo navegador — usa redirect como fallback
+      await auth.signInWithRedirect(provider);
+    } else {
+      throw e;
+    }
+  }
 }
+
+// Captura resultado de redirecionamento Google (fallback de popup bloqueado)
+auth.getRedirectResult().catch(e => {
+  if (e.code) window._googleRedirectError = e;
+});
 
 /** Retorna um ID token atualizado para uso nas chamadas de API. Null se não autenticado. */
 async function getToken() {

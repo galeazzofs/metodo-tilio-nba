@@ -147,6 +147,15 @@ function renderPainel(bets) {
           <div class="dkpi-sub">Performance vitalícia</div>
         </div>
 
+        <!-- Avg Odds -->
+        <div class="dash-kpi">
+          <div class="dkpi-label">Odds Médias</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val" style="color:var(--gold)">${s.avgOdds !== null ? s.avgOdds.toFixed(2) : '—'}</span>
+          </div>
+          <div class="dkpi-sub">${s.wonCount + s.lostCount} apostas finalizadas</div>
+        </div>
+
       </div>
 
       <!-- ── P&L Line Chart (full width) ── -->

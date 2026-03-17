@@ -78,7 +78,6 @@ def parse_screenshot(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     bets = []
     erros = []
     now = datetime.now(timezone.utc).isoformat()
-    ano_atual = datetime.now().year
 
     for i, item in enumerate(items):
         try:
@@ -96,15 +95,8 @@ def parse_screenshot(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
             else:
                 lp = None
 
-            # Normaliza data
-            data_raw = str(item.get("data", ""))
-            # Se formato for DD/MM ou DD/MM/AAAA, converte
-            if re.match(r"\d{2}/\d{2}$", data_raw):
-                data_raw = f"{ano_atual}-{data_raw[3:5]}-{data_raw[:2]}"
-            elif re.match(r"\d{2}/\d{2}/\d{4}$", data_raw):
-                data_raw = f"{data_raw[6:]}-{data_raw[3:5]}-{data_raw[:2]}"
-            elif re.match(r"\d{2}/\d{2}/\d{2}$", data_raw):
-                data_raw = f"20{data_raw[6:]}-{data_raw[3:5]}-{data_raw[:2]}"
+            # Data sempre = dia do upload (não a data da aposta na imagem)
+            data_raw = datetime.now().strftime("%Y-%m-%d")
 
             bet_id = str(uuid.uuid4())
             bets.append({
@@ -115,7 +107,7 @@ def parse_screenshot(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
                 "tipo_aposta":  str(item.get("tipo_aposta", "Outro")),
                 "odds":         odds,
                 "stake":        stake,
-                "data":         data_raw or datetime.now().strftime("%Y-%m-%d"),
+                "data":         data_raw,
                 "resultado":    resultado,
                 "lucro_prejuizo": lp,
                 "importado_de": "screenshot",
