@@ -22,6 +22,12 @@ async function signOut() {
   await auth.signOut();
 }
 
+/** Entra com Google (popup). Lança exceção em caso de falha. */
+async function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  await auth.signInWithPopup(provider);
+}
+
 /** Retorna um ID token atualizado para uso nas chamadas de API. Null se não autenticado. */
 async function getToken() {
   const user = auth.currentUser;
