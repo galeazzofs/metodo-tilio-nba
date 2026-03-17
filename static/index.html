@@ -822,6 +822,122 @@
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
+
+    /* ══════════════════════════════════════
+       PAINEL — Hero card
+    ══════════════════════════════════════ */
+    .painel-hero {
+      position: relative; overflow: hidden;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 28px 32px; margin-bottom: 14px;
+      background: var(--surface);
+    }
+
+    .painel-hero.pnl-pos {
+      border-color: rgba(34,197,94,0.22);
+      background: linear-gradient(135deg, rgba(34,197,94,0.055) 0%, var(--surface) 55%);
+    }
+
+    .painel-hero.pnl-neg {
+      border-color: rgba(244,63,94,0.22);
+      background: linear-gradient(135deg, rgba(244,63,94,0.055) 0%, var(--surface) 55%);
+    }
+
+    .hero-bg-num {
+      position: absolute; right: 20px; top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--font-brand); font-weight: 900;
+      font-size: clamp(60px, 9vw, 110px);
+      line-height: 1; letter-spacing: -0.04em;
+      pointer-events: none; user-select: none;
+      white-space: nowrap;
+    }
+
+    .painel-hero.pnl-pos .hero-bg-num { color: #22c55e; opacity: 0.07; }
+    .painel-hero.pnl-neg .hero-bg-num { color: var(--red); opacity: 0.07; }
+    .painel-hero.pnl-zero .hero-bg-num { color: var(--text); opacity: 0.04; }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    .hero-pnl {
+      font-family: var(--font-brand); font-weight: 900;
+      font-size: clamp(36px, 5vw, 58px);
+      letter-spacing: -0.03em; line-height: 1; margin-bottom: 16px;
+    }
+
+    .painel-hero.pnl-pos .hero-pnl  { color: #22c55e; }
+    .painel-hero.pnl-neg .hero-pnl  { color: var(--red); }
+    .painel-hero.pnl-zero .hero-pnl { color: var(--text); }
+
+    .hero-chips {
+      display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 18px;
+    }
+
+    .hero-chip {
+      padding: 3px 10px; border: 1px solid var(--border); border-radius: 3px;
+      background: rgba(255,255,255,0.025);
+      font-family: var(--font-mono); font-size: 11px; color: var(--muted);
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+
+    .hero-history { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+
+    .hero-hist-lbl {
+      font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.14em;
+      color: var(--muted); text-transform: uppercase;
+      margin-right: 5px; flex-shrink: 0;
+    }
+
+    .h-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+    .h-win  { background: rgba(34,197,94,0.7); }
+    .h-loss { background: rgba(244,63,94,0.6); }
+    .h-pend { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.08); }
+
+
+    /* ══════════════════════════════════════
+       PAINEL — KPI row
+    ══════════════════════════════════════ */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 12px; margin-bottom: 14px;
+    }
+
+    .kpi-prog-wrap {
+      height: 3px; background: rgba(255,255,255,0.07);
+      border-radius: 2px; margin: 10px 0 7px; overflow: hidden;
+    }
+
+    .kpi-prog-fill {
+      height: 100%; border-radius: 2px;
+      transition: width 0.9s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    .kpf-lime  { background: var(--orange); }
+    .kpf-green { background: #22c55e; }
+    .kpf-red   { background: var(--red); }
+    .kpf-gold  { background: var(--gold); }
+
+    .kv-lime  { color: var(--orange); }
+    .kv-green { color: #22c55e; }
+    .kv-red   { color: var(--red); }
+    .kv-gold  { color: var(--gold); }
+    .kv-teal  { color: var(--purple); }
+    .kv-text  { color: var(--text); }
+
+    .kpi-sub-mono {
+      font-size: 11px; color: var(--muted);
+      font-family: var(--font-mono); margin-top: 8px;
+    }
+
+    /* ══════════════════════════════════════
+       PAINEL — Charts
+    ══════════════════════════════════════ */
+    .chart-full { margin-bottom: 14px; }
+
   </style>
 </head>
 <body>
