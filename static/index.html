@@ -118,9 +118,9 @@
       position: absolute;
       font-family: var(--font-brand);
       font-weight: 900;
-      font-size: clamp(90px, 16vw, 220px);
+      font-size: clamp(140px, 22vw, 320px);
       letter-spacing: -0.04em;
-      color: rgba(98,60,234,0.05);
+      color: rgba(84,66,107,0.04);
       user-select: none; pointer-events: none;
       top: 50%; left: 50%;
       transform: translate(-50%, -52%);
@@ -139,29 +139,17 @@
     }
 
     .auth-logo {
-      display: flex; align-items: center; gap: 12px;
-      margin-bottom: 30px;
+      display: flex; justify-content: center;
+      margin-bottom: 28px;
     }
 
     .auth-logo-mark {
-      width: 42px; height: 42px; border-radius: 10px;
+      width: 60px; height: 60px; border-radius: 14px;
       background: var(--majorelle-blue);
       display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-brand); font-weight: 900; font-size: 16px;
+      font-family: var(--font-brand); font-weight: 900; font-size: 20px;
       color: #ffffff; flex-shrink: 0;
       letter-spacing: -0.02em;
-    }
-
-    .auth-logo-name {
-      font-family: var(--font-brand); font-weight: 800;
-      font-size: 22px; letter-spacing: 0.08em; line-height: 1;
-      color: var(--vintage-grape);
-    }
-
-    .auth-logo-sub {
-      font-family: var(--font-mono); font-size: 9px;
-      color: var(--muted); letter-spacing: 0.1em; margin-top: 3px;
-      text-transform: uppercase;
     }
 
     .auth-toggle {
@@ -1117,10 +1105,6 @@
   <div class="auth-card">
     <div class="auth-logo">
       <div class="auth-logo-mark">SC</div>
-      <div>
-        <div class="auth-logo-name">SCOUT</div>
-        <div class="auth-logo-sub">NBA Intelligence Platform</div>
-      </div>
     </div>
 
     <div class="auth-toggle">
