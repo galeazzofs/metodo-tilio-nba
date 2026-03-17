@@ -5,12 +5,16 @@ let _chartResultado = null;
 let _chartTipo      = null;
 let _pluginsRegistered = false;
 
-// ── Chart.js custom plugins (registered once) ───────────────────────────────
+let _chartRange    = 'ALL';
+let _allBetsCache  = null;
+let _filteredCache = null;
+
+// ── Chart.js custom plugins (registered once) ────────────────────────────
 function ensurePlugins() {
   if (_pluginsRegistered) return;
   _pluginsRegistered = true;
 
-  // 1. Gradient fill for line chart
+  // Gradient fill for line chart
   Chart.register({
     id: 'lineGradientFill',
     afterLayout(chart) {
@@ -18,40 +22,18 @@ function ensurePlugins() {
       const { ctx, chartArea } = chart;
       if (!chartArea) return;
       const ds = chart.data.datasets[0];
+      const isPos = (ds._isPositive !== false);
+      const r = isPos ? 34 : 244, g = isPos ? 197 : 63, b = isPos ? 94 : 94;
       const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-      gradient.addColorStop(0, 'rgba(198,241,53,0.18)');
-      gradient.addColorStop(0.65, 'rgba(198,241,53,0.04)');
-      gradient.addColorStop(1, 'rgba(198,241,53,0)');
+      gradient.addColorStop(0,   `rgba(${r},${g},${b},0.20)`);
+      gradient.addColorStop(0.5, `rgba(${r},${g},${b},0.05)`);
+      gradient.addColorStop(1,   `rgba(${r},${g},${b},0)`);
       ds.backgroundColor = gradient;
-    },
-  });
-
-  // 2. Center text for doughnut
-  Chart.register({
-    id: 'doughnutCenter',
-    afterDraw(chart) {
-      if (chart.config.type !== 'doughnut') return;
-      const opts = chart.options?.plugins?.doughnutCenter;
-      if (!opts) return;
-      const { ctx, chartArea } = chart;
-      if (!chartArea) return;
-      const cx = (chartArea.left + chartArea.right) / 2;
-      const cy = (chartArea.top + chartArea.bottom) / 2;
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '800 26px "Syne", sans-serif';
-      ctx.fillStyle = '#dde8f5';
-      ctx.fillText(opts.value, cx, cy - 10);
-      ctx.font = '400 9px "IBM Plex Mono", monospace';
-      ctx.fillStyle = 'rgba(221,232,245,0.35)';
-      ctx.fillText(opts.label, cx, cy + 12);
-      ctx.restore();
     },
   });
 }
 
-// ── Load & render ────────────────────────────────────────────────────────────
+// ── Load & render ─────────────────────────────────────────────────────────
 async function loadPainel() {
   const container = document.getElementById('tab-painel');
   container.innerHTML = '<div style="padding:60px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em">Carregando...</div>';
@@ -60,6 +42,7 @@ async function loadPainel() {
     const res = await authFetch('/api/bets');
     if (!res.ok) throw new Error('Erro ao carregar apostas');
     const bets = await res.json();
+    _allBetsCache = bets;
     renderPainel(bets);
   } catch (e) {
     container.innerHTML = `<div style="padding:60px;text-align:center;color:var(--red);font-family:var(--font-mono);font-size:12px">${e.message}</div>`;
@@ -68,6 +51,7 @@ async function loadPainel() {
 
 function renderPainel(bets) {
   ensurePlugins();
+  _allBetsCache = bets;
   const container = document.getElementById('tab-painel');
 
   if (bets.length === 0) {
@@ -86,30 +70,30 @@ function renderPainel(bets) {
   let filtered = bets;
   if (de)  filtered = filtered.filter(b => b.data >= de);
   if (ate) filtered = filtered.filter(b => b.data <= ate);
+  _filteredCache = filtered;
 
   const s = calcStats(filtered);
 
-  // Hero class and background number
-  const heroClass = s.totalLP > 0 ? 'pnl-pos' : s.totalLP < 0 ? 'pnl-neg' : 'pnl-zero';
-  const bgNumRaw  = fmtMoney(s.totalLP);
+  // Comparison: last 30 days vs previous 30 days (always on raw bets)
+  const now = new Date();
+  const fmtD = d => d.toISOString().slice(0, 10);
+  const d30 = new Date(now); d30.setDate(d30.getDate() - 30);
+  const d60 = new Date(now); d60.setDate(d60.getDate() - 60);
+  const sLast30 = calcStats(bets.filter(b => b.data >= fmtD(d30)));
+  const sPrev30 = calcStats(bets.filter(b => b.data >= fmtD(d60) && b.data < fmtD(d30)));
 
-  // Last 10 bets dots
-  const dotsHtml = s.lastBets.length > 0 ? `
-    <div class="hero-history">
-      <span class="hero-hist-lbl">ÚLTIMAS ${s.lastBets.length}</span>
-      ${s.lastBets.map(r =>
-        `<span class="h-dot ${r === 'ganhou' ? 'h-win' : r === 'perdeu' ? 'h-loss' : 'h-pend'}" title="${r}"></span>`
-      ).join('')}
-    </div>` : '';
+  const plChange     = sLast30.totalLP - sPrev30.totalLP;
+  const plChangePct  = sPrev30.totalLP !== 0
+    ? (plChange / Math.abs(sPrev30.totalLP) * 100) : null;
+  const wrChange  = (sLast30.winRate !== null && sPrev30.winRate !== null)
+    ? sLast30.winRate - sPrev30.winRate : null;
+  const roiChange = (sLast30.roi !== null && sPrev30.roi !== null)
+    ? sLast30.roi - sPrev30.roi : null;
 
-  // Win rate progress fill color
-  const winFillClass = s.winRate !== null && s.winRate >= 55 ? 'kpf-lime'
-                     : s.winRate !== null && s.winRate >= 40 ? 'kpf-gold'
-                     : 'kpf-red';
+  const winFill = s.winRate !== null && s.winRate >= 55 ? 'kpf-lime'
+                : s.winRate !== null && s.winRate >= 40 ? 'kpf-gold' : 'kpf-red';
 
-  // Streak color
-  const streakColor = s.streakVal > 0 ? 'kv-green' : s.streakVal < 0 ? 'kv-red' : 'kv-text';
-  const streakSub   = s.streakVal > 0 ? 'em alta ↑' : s.streakVal < 0 ? 'em baixa ↓' : '—';
+  const rb = r => _chartRange === r ? 'active' : '';
 
   container.innerHTML = `
     <div class="pg-wrap">
@@ -128,95 +112,162 @@ function renderPainel(bets) {
         </div>
       </div>
 
-      <!-- ── HERO CARD ── -->
-      <div class="painel-hero ${heroClass}">
-        <div class="hero-bg-num">${bgNumRaw}</div>
-        <div class="hero-eyebrow">Resultado Total</div>
-        <div class="hero-pnl">${bgNumRaw}</div>
-        <div class="hero-chips">
-          <span class="hero-chip">${s.total} apostas</span>
-          <span class="hero-chip">R$ ${s.totalStake.toFixed(2)} apostado</span>
-          ${s.roi !== null ? `<span class="hero-chip">ROI ${s.roi >= 0 ? '+' : ''}${s.roi.toFixed(1)}%</span>` : ''}
-          <span class="hero-chip">${s.wonCount}G &middot; ${s.lostCount}P${s.pendingCount > 0 ? ` &middot; ${s.pendingCount}⧖` : ''}</span>
-        </div>
-        ${dotsHtml}
-      </div>
+      <!-- ── 3 KPI Cards ── -->
+      <div class="dash-kpi-row">
 
-      <!-- ── KPI ROW (4 cards) ── -->
-      <div class="kpi-row">
+        <!-- Total Profit -->
+        <div class="dash-kpi">
+          <div class="dkpi-label">Lucro Total</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val ${s.totalLP >= 0 ? 'dkpi-pos' : 'dkpi-neg'}">${fmtMoney(s.totalLP)}</span>
+            ${plChangePct !== null ? `<span class="dkpi-badge ${plChange >= 0 ? 'dbadge-pos' : 'dbadge-neg'}">${plChange >= 0 ? '+' : ''}${plChangePct.toFixed(1)}%</span>` : ''}
+          </div>
+          ${s.winRate !== null ? `<div class="dkpi-prog-wrap"><div class="dkpi-prog ${winFill}" style="width:${Math.min(s.winRate,100).toFixed(1)}%"></div></div>` : ''}
+          <div class="dkpi-sub">vs últimos 30 dias</div>
+        </div>
 
         <!-- Win Rate -->
-        <div class="kpi-card">
-          <div class="kpi-lbl">Taxa de Acerto</div>
-          <div class="kpi-val kv-lime" style="font-size:26px">
-            ${s.winRate !== null ? s.winRate.toFixed(1) + '%' : '—'}
+        <div class="dash-kpi">
+          <div class="dkpi-label">Taxa de Acerto</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val">${s.winRate !== null ? s.winRate.toFixed(1) + '%' : '—'}</span>
+            ${wrChange !== null ? `<span class="dkpi-badge ${wrChange >= 0 ? 'dbadge-pos' : 'dbadge-neg'}">${wrChange >= 0 ? '+' : ''}${wrChange.toFixed(1)}%</span>` : ''}
           </div>
-          ${s.winRate !== null ? `
-          <div class="kpi-prog-wrap">
-            <div class="kpi-prog-fill ${winFillClass}" style="width:${Math.min(s.winRate, 100).toFixed(1)}%"></div>
-          </div>
-          <div class="kpi-sub-mono">${s.wonCount}G &middot; ${s.lostCount}P de ${s.wonCount + s.lostCount}</div>
-          ` : '<div class="kpi-sub-mono">sem dados</div>'}
+          ${s.winRate !== null ? `<div class="dkpi-prog-wrap"><div class="dkpi-prog kpf-lime" style="width:${Math.min(s.winRate,100).toFixed(1)}%"></div></div>` : ''}
+          <div class="dkpi-sub">Performance acumulada</div>
         </div>
 
-        <!-- Avg Odds -->
-        <div class="kpi-card">
-          <div class="kpi-lbl">Odds Médias</div>
-          <div class="kpi-val kv-gold" style="font-size:26px">
-            ${s.avgOdds !== null ? s.avgOdds.toFixed(2) : '—'}
+        <!-- ROI -->
+        <div class="dash-kpi">
+          <div class="dkpi-label">Retorno sobre Investimento</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val">${s.roi !== null ? (s.roi >= 0 ? '+' : '') + s.roi.toFixed(1) + '%' : '—'}</span>
+            ${roiChange !== null ? `<span class="dkpi-badge ${roiChange >= 0 ? 'dbadge-pos' : 'dbadge-neg'}">${roiChange >= 0 ? '+' : ''}${roiChange.toFixed(1)}%</span>` : ''}
           </div>
-          <div class="kpi-sub-mono" style="margin-top:${s.winRate !== null ? '20px' : '8px'}">finalizadas</div>
-        </div>
-
-        <!-- Streak -->
-        <div class="kpi-card">
-          <div class="kpi-lbl">Sequência</div>
-          <div class="kpi-val ${streakColor}" style="font-size:22px;letter-spacing:0">${s.streakLabel}</div>
-          <div class="kpi-sub-mono" style="margin-top:${s.winRate !== null ? '20px' : '8px'}">${streakSub}</div>
-        </div>
-
-        <!-- Total -->
-        <div class="kpi-card">
-          <div class="kpi-lbl">Apostas</div>
-          <div class="kpi-val kv-teal" style="font-size:26px">${s.total}</div>
-          <div class="kpi-sub-mono" style="margin-top:${s.winRate !== null ? '20px' : '8px'}">
-            ${s.pendingCount > 0 ? s.pendingCount + ' pendentes' : 'todas fechadas'}
-          </div>
+          <div class="dkpi-sub">Performance vitalícia</div>
         </div>
 
       </div>
 
-      <!-- ── P&L LINE CHART (full width) ── -->
-      <div class="chart-full">
-        <div class="chart-box">
-          <div class="chart-lbl">P&amp;L Acumulado</div>
-          <canvas id="chartLucro" style="max-height:200px"></canvas>
+      <!-- ── P&L Line Chart (full width) ── -->
+      <div class="dash-chart-card">
+        <div class="dash-chart-hdr">
+          <div>
+            <div class="dch-title">Acumulação P&amp;L</div>
+            <div class="dch-sub">Evolução diária de lucro e prejuízo</div>
+          </div>
+          <div class="dch-range-btns">
+            <button class="dch-range-btn ${rb('1W')}"  onclick="setChartRange('1W')">1S</button>
+            <button class="dch-range-btn ${rb('1M')}"  onclick="setChartRange('1M')">1M</button>
+            <button class="dch-range-btn ${rb('3M')}"  onclick="setChartRange('3M')">3M</button>
+            <button class="dch-range-btn ${rb('ALL')}" onclick="setChartRange('ALL')">TUDO</button>
+          </div>
         </div>
+        <canvas id="chartLucro" style="max-height:240px"></canvas>
       </div>
 
-      <!-- ── DOUGHNUT + BAR ── -->
-      <div class="charts-grid">
-        <div class="chart-box">
-          <div class="chart-lbl">Resultados</div>
-          <canvas id="chartResultado" style="max-height:260px"></canvas>
+      <!-- ── Bottom row ── -->
+      <div class="dash-bottom">
+
+        <!-- Results by Type (HTML bars) -->
+        <div class="dash-chart-card">
+          <div class="dch-title" style="margin-bottom:22px">Resultados por Tipo</div>
+          <div id="typesList"></div>
         </div>
-        <div class="chart-box">
-          <div class="chart-lbl">P&amp;L por Tipo</div>
+
+        <!-- Total Bets bar chart -->
+        <div class="dash-chart-card">
+          <div class="dash-chart-hdr" style="margin-bottom:20px">
+            <div class="dch-title">Total de Apostas</div>
+            <span class="dch-total-badge">${s.total} total</span>
+          </div>
           <canvas id="chartTipo"></canvas>
         </div>
-      </div>
 
+      </div>
     </div>`;
 
   [_chartLucro, _chartResultado, _chartTipo].forEach(c => c?.destroy());
+  _chartLucro = _chartResultado = _chartTipo = null;
   drawCharts(filtered, s);
+  renderTypesList(filtered);
 }
 
-// ── Stats calculation ────────────────────────────────────────────────────────
+// ── Chart range filter ────────────────────────────────────────────────────
+function setChartRange(range) {
+  _chartRange = range;
+
+  // Update button states
+  const labelMap = { '1S': '1W', '1M': '1M', '3M': '3M', 'TUDO': 'ALL' };
+  document.querySelectorAll('.dch-range-btn').forEach(btn => {
+    btn.classList.toggle('active', labelMap[btn.textContent.trim()] === range);
+  });
+
+  if (_chartLucro) { _chartLucro.destroy(); _chartLucro = null; }
+  drawLineChart(_filteredCache || []);
+}
+
+function getRangeBets(bets) {
+  if (_chartRange === 'ALL') return bets;
+  const days = { '1W': 7, '1M': 30, '3M': 90 }[_chartRange];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  return bets.filter(b => b.data >= cutoffStr);
+}
+
+// ── Render "Results by Type" HTML list ────────────────────────────────────
+function renderTypesList(bets) {
+  const el = document.getElementById('typesList');
+  if (!el) return;
+
+  const byTipo = {};
+  bets.filter(b => b.resultado !== 'pendente').forEach(b => {
+    const t = b.tipo_aposta || 'Outro';
+    byTipo[t] = (byTipo[t] ?? 0) + (b.lucro_prejuizo ?? 0);
+  });
+
+  const entries = Object.entries(byTipo)
+    .map(([t, v]) => [t, parseFloat(v.toFixed(2))])
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+
+  if (entries.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-family:var(--font-mono);font-size:11px">Sem dados resolvidos</div>';
+    return;
+  }
+
+  const maxAbs = Math.max(...entries.map(([, v]) => Math.abs(v)), 1);
+  const dotColors = ['#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#06b6d4', '#f43f5e'];
+
+  el.innerHTML = entries.map(([tipo, val], i) => {
+    const pct   = (Math.abs(val) / maxAbs * 100).toFixed(1);
+    const isPos = val >= 0;
+    const dot   = dotColors[i % dotColors.length];
+    return `
+      <div class="dtype-row">
+        <div class="dtype-info">
+          <span class="dtype-name">
+            <span class="dtype-dot" style="background:${dot}"></span>
+            ${_escP(tipo)}
+          </span>
+          <span class="dtype-val ${isPos ? 'dkpi-pos' : 'dkpi-neg'}">${fmtMoney(val)}</span>
+        </div>
+        <div class="dtype-bar-wrap">
+          <div class="dtype-bar ${isPos ? 'dtype-bar-pos' : 'dtype-bar-neg'}" style="width:${pct}%;background:${dot}88"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function _escP(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Stats calculation ─────────────────────────────────────────────────────
 function calcStats(bets) {
-  const resolved    = bets.filter(b => b.resultado === 'ganhou' || b.resultado === 'perdeu');
-  const wonCount    = bets.filter(b => b.resultado === 'ganhou').length;
-  const lostCount   = bets.filter(b => b.resultado === 'perdeu').length;
+  const resolved     = bets.filter(b => b.resultado === 'ganhou' || b.resultado === 'perdeu');
+  const wonCount     = bets.filter(b => b.resultado === 'ganhou').length;
+  const lostCount    = bets.filter(b => b.resultado === 'perdeu').length;
   const pendingCount = bets.filter(b => b.resultado === 'pendente').length;
 
   const totalLP = bets
@@ -224,239 +275,188 @@ function calcStats(bets) {
     .reduce((s, b) => s + (b.lucro_prejuizo ?? 0), 0);
 
   const totalStake = bets.reduce((s, b) => s + (b.stake ?? 0), 0);
-
-  const winRate = resolved.length > 0 ? (wonCount / resolved.length) * 100 : null;
+  const winRate    = resolved.length > 0 ? (wonCount / resolved.length) * 100 : null;
 
   const roiStake = resolved.reduce((s, b) => s + (b.stake ?? 0), 0);
   const roiLP    = resolved.reduce((s, b) => s + (b.lucro_prejuizo ?? 0), 0);
   const roi      = roiStake > 0 ? (roiLP / roiStake) * 100 : null;
 
   const avgOdds = resolved.length > 0
-    ? resolved.reduce((s, b) => s + (b.odds ?? 0), 0) / resolved.length
-    : null;
-
-  // Streak
-  const sortedStreak = [...bets]
-    .filter(b => b.resultado === 'ganhou' || b.resultado === 'perdeu')
-    .sort((a, b) => (b.criado_em || b.data || '').localeCompare(a.criado_em || a.data || ''));
-
-  let streakVal = 0, streakLabel = '—';
-  if (sortedStreak.length > 0) {
-    const first = sortedStreak[0].resultado;
-    for (const b of sortedStreak) {
-      if (b.resultado !== first) break;
-      streakVal += first === 'ganhou' ? 1 : -1;
-    }
-    const n = Math.abs(streakVal);
-    streakLabel = streakVal > 0
-      ? `+${n} vitória${n > 1 ? 's' : ''}`
-      : `-${n} derrota${n > 1 ? 's' : ''}`;
-  }
-
-  // Last 10 resolved bets (oldest→newest for left-to-right display)
-  const lastBets = [...bets]
-    .filter(b => b.resultado === 'ganhou' || b.resultado === 'perdeu')
-    .sort((a, b) => (a.data || '').localeCompare(b.data || ''))
-    .slice(-10)
-    .map(b => b.resultado);
+    ? resolved.reduce((s, b) => s + (b.odds ?? 0), 0) / resolved.length : null;
 
   return {
     totalLP: parseFloat(totalLP.toFixed(2)),
     totalStake: parseFloat(totalStake.toFixed(2)),
     wonCount, lostCount, pendingCount,
-    winRate, roi, avgOdds, streakVal, streakLabel,
-    total: bets.length, lastBets,
+    winRate, roi, avgOdds,
+    total: bets.length,
   };
 }
 
-// ── Charts ───────────────────────────────────────────────────────────────────
+// ── Charts ────────────────────────────────────────────────────────────────
+const _GRID  = 'rgba(255,255,255,0.04)';
+const _TICK  = 'rgba(221,232,245,0.3)';
+const _MONO  = { family: '"IBM Plex Mono"', size: 10 };
+const _TT    = {
+  backgroundColor: 'rgba(8,11,22,0.96)',
+  borderColor: 'rgba(255,255,255,0.08)',
+  borderWidth: 1,
+  titleColor: 'rgba(221,232,245,0.45)',
+  bodyColor: '#dde8f5',
+  padding: 12,
+  titleFont: { family: '"IBM Plex Mono"', size: 10 },
+  bodyFont:  { family: '"IBM Plex Mono"', size: 12, weight: '500' },
+  displayColors: false,
+  cornerRadius: 6,
+};
+
 function drawCharts(bets, stats) {
-  const gridColor = 'rgba(255,255,255,0.04)';
-  const tickColor = 'rgba(221,232,245,0.3)';
-  const monoFont  = { family: '"IBM Plex Mono"', size: 10 };
+  drawLineChart(bets);
+  drawBetsBarChart(bets, stats);
+}
 
-  const tooltip = {
-    backgroundColor: 'rgba(12,16,32,0.95)',
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    titleColor: 'rgba(221,232,245,0.5)',
-    bodyColor: '#dde8f5',
-    padding: 10,
-    titleFont: { family: '"IBM Plex Mono"', size: 10 },
-    bodyFont:  { family: '"IBM Plex Mono"', size: 12, weight: '500' },
-    displayColors: false,
-  };
-
-  // 1. P&L Line chart
-  const resolvedSorted = bets
+function drawLineChart(bets) {
+  const ranged = getRangeBets(bets)
     .filter(b => b.resultado !== 'pendente')
     .sort((a, b) => a.data.localeCompare(b.data));
 
   let cum = 0;
-  const lineLabels = [];
-  const lineData   = [];
-  resolvedSorted.forEach(b => {
+  const labels = [];
+  const data   = [];
+  ranged.forEach(b => {
     cum += b.lucro_prejuizo ?? 0;
-    lineLabels.push(b.data);
-    lineData.push(parseFloat(cum.toFixed(2)));
+    labels.push(b.data);
+    data.push(parseFloat(cum.toFixed(2)));
   });
+
+  const finalVal  = data.length > 0 ? data[data.length - 1] : 0;
+  const isPositive = finalVal >= 0;
+  const lineColor  = isPositive ? '#22c55e' : '#f43f5e';
+
+  const ds = {
+    label: 'P&L Acumulado',
+    data,
+    borderColor: lineColor,
+    backgroundColor: 'rgba(34,197,94,0.1)',
+    _isPositive: isPositive,
+    fill: true,
+    tension: 0.4,
+    pointRadius: 0,
+    pointHoverRadius: 5,
+    pointHoverBackgroundColor: lineColor,
+    pointHoverBorderColor: 'rgba(6,8,15,0.9)',
+    pointHoverBorderWidth: 2,
+    borderWidth: 2.5,
+  };
 
   _chartLucro = new Chart(document.getElementById('chartLucro'), {
     type: 'line',
-    data: {
-      labels: lineLabels,
-      datasets: [{
-        label: 'P&L Acumulado (R$)',
-        data: lineData,
-        borderColor: '#c6f135',
-        backgroundColor: 'rgba(198,241,53,0.1)', // overridden by plugin
-        fill: true,
-        tension: 0.42,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        pointHoverBackgroundColor: '#c6f135',
-        pointHoverBorderColor: 'rgba(6,8,15,0.8)',
-        pointHoverBorderWidth: 2,
-        borderWidth: 2,
-      }],
-    },
+    data: { labels, datasets: [ds] },
     options: {
       responsive: true,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
-          ...tooltip,
+          ..._TT,
           callbacks: {
-            title: (items) => items[0]?.label || '',
-            label: (item) => ` ${item.raw >= 0 ? '+' : ''}R$ ${Math.abs(item.raw).toFixed(2)}`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { color: tickColor, maxTicksLimit: 8, font: monoFont },
-          grid:  { color: gridColor },
-          border: { color: 'rgba(255,255,255,0.06)' },
-        },
-        y: {
-          ticks: {
-            color: tickColor, font: monoFont,
-            callback: v => (v >= 0 ? '+' : '') + 'R$' + v.toFixed(0),
-          },
-          grid:  { color: gridColor },
-          border: { color: 'rgba(255,255,255,0.06)' },
-        },
-      },
-    },
-  });
-
-  // 2. Results doughnut
-  const counts = { Ganhou: stats.wonCount, Perdeu: stats.lostCount, Pendente: stats.pendingCount, Void: 0 };
-  bets.forEach(b => { if (b.resultado === 'void') counts.Void++; });
-
-  const doughnutData = Object.values(counts);
-  const totalBets    = doughnutData.reduce((a, b) => a + b, 0);
-
-  _chartResultado = new Chart(document.getElementById('chartResultado'), {
-    type: 'doughnut',
-    data: {
-      labels: Object.keys(counts),
-      datasets: [{
-        data: doughnutData,
-        backgroundColor: ['#22c55e','#f43f5e','#f59e0b','rgba(255,255,255,0.1)'],
-        borderWidth: 0,
-        hoverOffset: 8,
-        hoverBorderWidth: 0,
-      }],
-    },
-    options: {
-      responsive: true,
-      cutout: '72%',
-      plugins: {
-        doughnutCenter: { value: String(totalBets), label: 'TOTAL' },
-        legend: {
-          position: 'bottom',
-          labels: {
-            color: tickColor, padding: 16, font: monoFont,
-            boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'rect',
-          },
-        },
-        tooltip: {
-          ...tooltip,
-          callbacks: {
-            label: (item) => {
-              const val = item.raw;
-              const pct = totalBets > 0 ? ((val / totalBets) * 100).toFixed(1) : '0';
-              return ` ${val} (${pct}%)`;
+            title: items => items[0]?.label || '',
+            label: item => {
+              const v = item.raw;
+              return ` ${v >= 0 ? '+' : ''}R$ ${Math.abs(v).toFixed(2)}`;
             },
           },
         },
       },
-    },
-  });
-
-  // 3. P&L by type — horizontal bar
-  const byTipo = {};
-  bets.filter(b => b.resultado !== 'pendente').forEach(b => {
-    const t = b.tipo_aposta || 'Outro';
-    byTipo[t] = (byTipo[t] ?? 0) + (b.lucro_prejuizo ?? 0);
-  });
-
-  const tipoVals   = Object.values(byTipo).map(v => parseFloat(v.toFixed(2)));
-  const tipoBgColors = tipoVals.map(v =>
-    v >= 0 ? 'rgba(34,197,94,0.65)' : 'rgba(244,63,94,0.65)'
-  );
-  const tipoBorderColors = tipoVals.map(v =>
-    v >= 0 ? 'rgba(34,197,94,1)' : 'rgba(244,63,94,1)'
-  );
-
-  _chartTipo = new Chart(document.getElementById('chartTipo'), {
-    type: 'bar',
-    data: {
-      labels: Object.keys(byTipo),
-      datasets: [{
-        label: 'L/P (R$)',
-        data: tipoVals,
-        backgroundColor: tipoBgColors,
-        borderColor: tipoBorderColors,
-        borderWidth: 1,
-        borderRadius: 4,
-        borderSkipped: false,
-      }],
-    },
-    options: {
-      responsive: true,
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          ...tooltip,
-          callbacks: {
-            label: (item) => ` ${item.raw >= 0 ? '+' : ''}R$ ${Math.abs(item.raw).toFixed(2)}`,
-          },
-        },
-      },
       scales: {
         x: {
-          ticks: {
-            color: tickColor, font: monoFont,
-            callback: v => (v >= 0 ? '+' : '') + 'R$' + v.toFixed(0),
-          },
-          grid:  { color: gridColor },
+          ticks: { color: _TICK, maxTicksLimit: 8, font: _MONO },
+          grid:  { color: _GRID },
           border: { color: 'rgba(255,255,255,0.06)' },
         },
         y: {
-          ticks: { color: 'rgba(221,232,245,0.55)', font: monoFont },
-          grid:  { display: false },
-          border: { display: false },
+          ticks: {
+            color: _TICK, font: _MONO,
+            callback: v => (v >= 0 ? '+' : '') + 'R$' + v.toFixed(0),
+          },
+          grid:  { color: _GRID },
+          border: { color: 'rgba(255,255,255,0.06)' },
         },
       },
     },
   });
 }
 
-// ── Formatters ───────────────────────────────────────────────────────────────
+function drawBetsBarChart(bets, stats) {
+  // Group by date → count
+  const byDate = {};
+  bets.forEach(b => {
+    const d = b.data || 'N/A';
+    byDate[d] = (byDate[d] ?? 0) + 1;
+  });
+
+  let labels = Object.keys(byDate).sort();
+  let data   = labels.map(k => byDate[k]);
+
+  // If > 20 unique dates, group by month
+  if (labels.length > 20) {
+    const byMonth = {};
+    labels.forEach(d => {
+      const m = d.slice(0, 7);
+      byMonth[m] = (byMonth[m] ?? 0) + byDate[d];
+    });
+    labels = Object.keys(byMonth).sort();
+    data   = labels.map(k => byMonth[k]);
+  }
+
+  const maxVal = Math.max(...data, 1);
+  const maxIdx = data.indexOf(maxVal);
+  const bgColors = data.map((v, i) => {
+    if (i === maxIdx) return 'rgba(34,197,94,0.9)';
+    const t = v / maxVal;
+    return `rgba(34,${Math.round(100 + 97 * t)},${Math.round(60 + 34 * t)},${0.3 + t * 0.45})`;
+  });
+
+  _chartTipo = new Chart(document.getElementById('chartTipo'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Apostas',
+        data,
+        backgroundColor: bgColors,
+        borderRadius: 4,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ..._TT,
+          callbacks: {
+            label: item => ` ${item.raw} aposta${item.raw !== 1 ? 's' : ''}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: _TICK, font: _MONO, maxTicksLimit: 8 },
+          grid:  { display: false },
+          border: { color: 'rgba(255,255,255,0.06)' },
+        },
+        y: {
+          ticks: { color: _TICK, font: _MONO, stepSize: 1 },
+          grid:  { color: _GRID },
+          border: { color: 'rgba(255,255,255,0.06)' },
+        },
+      },
+    },
+  });
+}
+
+// ── Formatters ────────────────────────────────────────────────────────────
 function fmtMoney(v) {
   if (v == null) return '—';
   return (v >= 0 ? '+' : '−') + 'R$ ' + Math.abs(v).toFixed(2);
