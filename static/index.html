@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>SCOUT · NBA Intelligence</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -381,7 +381,7 @@
     .main-scroll::-webkit-scrollbar-thumb { background: rgba(84,66,107,0.18); border-radius: 2px; }
 
     .tab-panel { display: none; }
-    .tab-panel.active { display: block; animation: fadeUp 0.2s ease; }
+    .tab-panel.active { display: block; }
 
 
     /* ══════════════════════════════════════
@@ -890,7 +890,6 @@
       gap: 14px; margin-bottom: 14px;
     }
 
-    @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
 
     .chart-box {
       background: #ffffff; border: 1px solid var(--pearl-beige);
