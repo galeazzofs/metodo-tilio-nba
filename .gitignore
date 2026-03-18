@@ -10,3 +10,4 @@ venv/
 .claude/
 debug_*.py
 test_*.py
+!tests/test_*.py
