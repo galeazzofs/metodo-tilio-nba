@@ -8,3 +8,5 @@ uvicorn[standard]
 firebase-admin
 python-multipart
 google-generativeai
+python-dotenv
+pytest
