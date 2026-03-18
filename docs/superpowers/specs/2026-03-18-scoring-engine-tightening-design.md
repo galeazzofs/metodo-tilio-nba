@@ -70,6 +70,8 @@ if not is_stepping_up:
 
 Rationale: the entire analysis is predicated on a bench player filling a role created by an injury. If this condition is not met, no other signal is relevant.
 
+Note: in `run_analysis`, `is_stepping_up` is always `True` (guaranteed by the `has_injuries=True` guard + the minutes threshold filter). The gate therefore never fires through the normal code path. The parameter is retained to make the function's precondition explicit and to allow direct callers to pass `False` in future use cases.
+
 #### Gate 1 (DvP): Stricter rank threshold
 
 | | Before | After |
@@ -84,20 +86,24 @@ Only top-6 defensive weaknesses qualify. This reduces volume and improves precis
 
 Before scoring, check if `pts_recent > season_avg_pts`. If not, score 0 for this signal (no points added, no signal message appended).
 
-If above average, apply thresholds as before:
+If above average, apply thresholds:
 
 | pts_recent | Points |
 |---|---|
 | ≥ 18 | +3 |
 | ≥ 12 | +2 |
 | ≥ 7 | +1 |
-| < 7 | +0 |
+| < 7 | +0 (no signal message appended) |
+
+The existing "Low scorer" `signals.append` (for pts < 7) is removed entirely. If the player is above their season average but still below 7 pts, no message is appended and no points are awarded.
+
+The existing `if mins >= 25: signals.append(f"High usage: {mins} min avg")` block inside Signal 2 is retained as-is — it is a standalone informational append independent of the pts gate.
 
 Rationale: a player averaging 15 pts/game recently is only interesting if that's above their season baseline. Someone averaging 15 on a 16-pt season is not trending up.
 
 #### Signal 3 (Zone match): Unchanged
 
-Still a gate: zone mismatch discards the player entirely (+1 if match).
+Still a gate: zone mismatch discards the player entirely (+1 if match). Existing behaviour is preserved: if either `primary_zone` or `weakest_zone` is None, the gate is skipped (no discard, no point awarded). This None-passthrough is unchanged.
 
 #### Signal 4 (Stepping up): Converted to gate, no longer scores
 
@@ -120,6 +126,12 @@ New max score is 7 (3 + 3 + 1 = DvP + form + zone match).
 
 The FAVORABLE tier is removed entirely. Only BEST OF THE NIGHT and VERY FAVORABLE are surfaced.
 
+Also update the `_score_player` docstring to reflect the new max score (7), new tiers, and removal of FAVORABLE:
+```python
+# Before: "Score a player 0-8 across four signals.\nThresholds: 8 = BEST OF THE NIGHT, 6-7 = VERY FAVORABLE, 4-5 = FAVORABLE."
+# After:  "Score a player 0-7 across four signals.\nThresholds: 7 = BEST OF THE NIGHT, 5-6 = VERY FAVORABLE."
+```
+
 #### `run_analysis` — loop updates
 
 ```python
@@ -127,6 +139,8 @@ The FAVORABLE tier is removed entirely. Only BEST OF THE NIGHT and VERY FAVORABL
 season_minutes = get_player_season_minutes()
 # ...
 min_avg = season_minutes.get(player_id)
+if min_avg is None:
+    continue
 # ...
 score, rating, signals = _score_player(..., is_stepping_up=True)
 
@@ -135,9 +149,19 @@ season_stats = get_player_season_stats()
 # ...
 player_stats = season_stats.get(player_id)
 min_avg = player_stats.get("min") if player_stats else None
+if min_avg is None:
+    continue  # also guards the player_stats["pts"] access below
 # ...
-season_avg_pts = player_stats["pts"]
+season_avg_pts = player_stats["pts"]  # safe: min_avg is None check above guarantees player_stats is not None
 score, rating, signals = _score_player(..., season_avg_pts=season_avg_pts, is_stepping_up=True)
+```
+
+Also update the print string on the line before `get_player_season_stats()`:
+```python
+# Before
+print("  Fetching player season minutes (starter filter)...")
+# After
+print("  Fetching player season stats (starter filter)...")
 ```
 
 ---
