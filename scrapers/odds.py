@@ -42,13 +42,7 @@ TRICODE_TO_API_NAME = {
 
 
 def _get_api_key():
-    key = os.getenv("ODDS_API_KEY")
-    if not key:
-        raise RuntimeError(
-            "ODDS_API_KEY is not set. Add it to your .env file. "
-            "Get a free key at https://the-odds-api.com"
-        )
-    return key
+    return os.getenv("ODDS_API_KEY")
 
 
 def get_event_ids(games):
@@ -60,6 +54,9 @@ def get_event_ids(games):
     Returns {} on any HTTP error (all lines will show as N/A).
     """
     api_key = _get_api_key()
+    if not api_key:
+        print("  [odds] WARNING: ODDS_API_KEY not set — skipping lines")
+        return {}
 
     # Build set of today's games we care about, keyed by (away_tc, home_tc)
     wanted = {
@@ -107,6 +104,8 @@ def get_player_lines(candidates, event_ids):
     Returns {} on any HTTP error or quota exhaustion.
     """
     api_key = _get_api_key()
+    if not api_key:
+        return {}
 
     # Group candidates by game to deduplicate API calls
     games_to_players = {}
