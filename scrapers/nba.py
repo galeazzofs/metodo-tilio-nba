@@ -175,15 +175,17 @@ def get_all_teams_defense_zones(last_n_games=15):
 
 STARTER_MIN_THRESHOLD = 27.0  # season avg min/game above which = regular starter
 
-def get_player_season_stats():
+def get_player_season_minutes():
     """
-    Returns {player_id: {"min": avg_min, "pts": avg_pts}} for all players
-    with >= 5 games played.
+    Returns {player_id: season_avg_min} for all players with >= 5 games played.
 
     LeagueDashPlayerStats does not expose GS (games started), so we use
     season-long minutes per game as a reliable proxy for starter status:
-      >= 27 min/game  →  regular starter (skip in engine)
+      >= 27 min/game  →  regular starter (skip)
       <  27 min/game  →  bench player   (eligible if team has injuries)
+
+    This threshold cleanly separates starters (28-40 min) from bench players
+    (8-26 min) based on the current season distribution.
     """
     time.sleep(DELAY)
     df = _retry(lambda: leaguedashplayerstats.LeagueDashPlayerStats(
@@ -197,10 +199,7 @@ def get_player_season_stats():
         gp = int(row["GP"])
         if gp < 5:
             continue  # too few games for a reliable reading
-        result[int(row["PLAYER_ID"])] = {
-            "min": round(float(row["MIN"]), 1),
-            "pts": round(float(row["PTS"]), 1),
-        }
+        result[int(row["PLAYER_ID"])] = round(float(row["MIN"]), 1)
     return result
 
 
