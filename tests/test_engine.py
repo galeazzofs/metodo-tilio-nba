@@ -1,6 +1,6 @@
 # tests/test_engine.py
-import pytest
-from analysis.engine import _score_player
+from unittest.mock import patch
+from analysis.engine import _score_player, run_analysis
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -47,7 +47,9 @@ def test_gate1_poor_dvp_rank_returns_none():
         player_zones=ZONES_PAINT, opponent_defense_zones=OPP_DEFENSE_PAINT,
         is_stepping_up=True,
     )
+    assert score == 0
     assert rating is None
+    assert signals == []
 
 
 def test_gate1_elite_dvp_adds_3():
@@ -85,6 +87,19 @@ def test_signal2_below_season_avg_does_not_score():
     )
     # DvP +3 only
     assert score == 3
+    assert not any("scorer" in s.lower() for s in signals)
+
+
+def test_signal2_equal_to_season_avg_does_not_score():
+    # pts == season_avg_pts: strict greater-than, equal does not qualify
+    recent = {"pts": 10.0, "min": 20.0, "games": 15}
+    score, rating, signals = _score_player(
+        position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
+        recent_stats=recent, season_avg_pts=10.0,
+        player_zones=None, opponent_defense_zones=None,
+        is_stepping_up=True,
+    )
+    assert score == 3  # DvP only
     assert not any("scorer" in s.lower() for s in signals)
 
 
@@ -147,6 +162,25 @@ def test_signal2_empty_recent_stats_skips_block():
 
 
 # ---------------------------------------------------------------------------
+# Signal 3: Zone match
+# ---------------------------------------------------------------------------
+
+def test_signal3_zone_mismatch_discards_player():
+    # Player scores in paint, opponent concedes from 3-point zone → mismatch → discard
+    zones_paint = {"Restricted Area": {"attempts": 20, "made": 14, "pct": 70.0, "frequency": 50.0}}
+    opp_defense_three = {"Above the Break 3": {"fgm": 18.0, "fga": 28.0, "pct": 0.64}}
+    score, rating, signals = _score_player(
+        position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
+        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        player_zones=zones_paint, opponent_defense_zones=opp_defense_three,
+        is_stepping_up=True,
+    )
+    assert score == 0
+    assert rating is None
+    assert signals == []
+
+
+# ---------------------------------------------------------------------------
 # Rating thresholds
 # ---------------------------------------------------------------------------
 
@@ -200,9 +234,6 @@ def test_no_favorable_tier():
 # ---------------------------------------------------------------------------
 # run_analysis wiring smoke test
 # ---------------------------------------------------------------------------
-
-from unittest.mock import patch
-from analysis.engine import run_analysis
 
 def test_run_analysis_wiring_no_type_error():
     """
