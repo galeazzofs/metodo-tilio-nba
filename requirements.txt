@@ -9,3 +9,5 @@ firebase-admin
 python-multipart
 google-generativeai
 apscheduler
+python-dotenv
+pytest

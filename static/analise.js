@@ -174,6 +174,10 @@ function buildCard(p, g) {
       ${statCell(p.recent_stats.games + 'j', 'AMOSTRA')}
     </div>` : '';
 
+  const lineDisplay = p.line != null
+    ? `<span class="line-value">${p.line} pts</span>`
+    : `<span class="line-na">N/A</span>`;
+
   return `
     <div class="card card-${css}">
       <div class="card-head">
@@ -184,7 +188,10 @@ function buildCard(p, g) {
             <span class="card-meta">${esc(p.team)} &middot; ${esc(p.game)}</span>
           </div>
         </div>
-        <span class="rating-tag tag-${css}">${esc(g.tagLabel)}</span>
+        <div class="card-head-right">
+          <span class="rating-tag tag-${css}">${esc(g.tagLabel)}</span>
+          <span class="line-label">Linha: ${lineDisplay}</span>
+        </div>
       </div>
       <div class="signals">${signals}</div>
       ${stats}

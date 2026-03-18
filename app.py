@@ -73,6 +73,7 @@ def _run_analysis():
         from scrapers.nba import get_todays_games
         from scrapers.rotowire import get_projected_lineups
         from scrapers.fantasypros import get_defense_vs_position
+        from scrapers.odds import get_event_ids, get_player_lines
         from analysis.engine import run_analysis
 
         print("Buscando jogos de hoje...")
@@ -98,6 +99,12 @@ def _run_analysis():
         print("Rodando análise...")
         candidates = run_analysis(games, lineups, dvp)
         print(f"  {len(candidates)} candidato(s) encontrado(s)")
+
+        print("Buscando linhas de apostas (The Odds API)...")
+        event_ids = get_event_ids(games)
+        lines = get_player_lines(candidates, event_ids)
+        for c in candidates:
+            c["line"] = lines.get(c["player"])
 
         with state_lock:
             analysis_state["status"] = "done"

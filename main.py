@@ -1,6 +1,7 @@
 from scrapers.nba import get_todays_games
 from scrapers.rotowire import get_projected_lineups
 from scrapers.fantasypros import get_defense_vs_position
+from scrapers.odds import get_event_ids, get_player_lines
 from analysis.engine import run_analysis
 from output.formatter import format_results
 
@@ -24,6 +25,12 @@ def main():
 
     print("Running analysis...")
     candidates = run_analysis(games, lineups, dvp)
+
+    print("Fetching betting lines (The Odds API)...")
+    event_ids = get_event_ids(games)
+    lines = get_player_lines(candidates, event_ids)
+    for c in candidates:
+        c["line"] = lines.get(c["player"])
 
     print("\n")
     print(format_results(candidates))
