@@ -8,3 +8,4 @@ uvicorn[standard]
 firebase-admin
 python-multipart
 google-generativeai
+apscheduler
