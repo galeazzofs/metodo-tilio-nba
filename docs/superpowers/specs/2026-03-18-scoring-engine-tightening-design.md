@@ -97,6 +97,8 @@ If above average, apply thresholds:
 
 The existing "Low scorer" `signals.append` (for pts < 7) is removed entirely. If the player is above their season average but still below 7 pts, no message is appended and no points are awarded.
 
+The existing `if recent_stats:` outer guard is retained. When `get_player_recent_stats` returns `{}`, the entire Signal 2 block is skipped (no pts comparison, no messages, no discard); the player continues to Signal 3.
+
 The existing `if mins >= 25: signals.append(f"High usage: {mins} min avg")` block inside Signal 2 is retained as-is — it is a standalone informational append independent of the pts gate.
 
 Rationale: a player averaging 15 pts/game recently is only interesting if that's above their season baseline. Someone averaging 15 on a 16-pt season is not trending up.
