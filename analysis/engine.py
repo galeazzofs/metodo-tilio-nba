@@ -3,7 +3,7 @@ from scrapers.nba import (
     get_player_shot_zones,
     get_player_recent_stats,
     get_all_teams_defense_zones,
-    get_player_season_stats,
+    get_player_season_minutes,
     STARTER_MIN_THRESHOLD,
 )
 
@@ -95,53 +95,44 @@ def _best_dvp_rank(position, opponent_name, dvp):
     return best_rank, best_pts
 
 
-def _score_player(position, opponent_name, dvp, recent_stats, season_avg_pts, player_zones, opponent_defense_zones, is_stepping_up):
+def _score_player(position, opponent_name, dvp, recent_stats, player_zones, opponent_defense_zones, is_stepping_up):
     """
-    Score a player 0-7 across four signals.
-    Thresholds: 7 = BEST OF THE NIGHT, 5-6 = VERY FAVORABLE.
+    Score a player 0-6 across four signals.
+    Thresholds: 6 = BEST OF THE NIGHT, 4-5 = VERY FAVORABLE.
     Returns (score, rating, signals_list).
     """
     score = 0
     signals = []
 
-    # --- Gate 0: Stepping up (mandatory) ---
-    if not is_stepping_up:
-        return 0, None, []
-
-    # --- Gate 1: DvP rank (0-3 pts) ---
+    # --- Signal 1: DvP rank (0-3 pts) ---
     dvp_rank, dvp_pts = _best_dvp_rank(position, opponent_name, dvp)
     if dvp_rank is None:
         return 0, None, []
-    if dvp_rank <= 3:
+    if dvp_rank <= 8:
         score += 3
         signals.append(f"Elite matchup vs {opponent_name} (DvP #{dvp_rank}, {dvp_pts} pts/g allowed)")
-    elif dvp_rank <= 6:
+    elif dvp_rank <= 12:
         score += 2
         signals.append(f"Good matchup vs {opponent_name} (DvP #{dvp_rank}, {dvp_pts} pts/g allowed)")
     else:
-        # Rank > 6: not worth surfacing
+        # Rank > 12: not worth surfacing
         return 0, None, []
 
-    # --- Signal 2: Recent scoring form (0-3 pts) ---
+    # --- Signal 2: Recent form vs season avg (0-1 pt) ---
     if recent_stats:
-        pts = recent_stats["pts"]
+        pts_recent = recent_stats["pts"]
+        season_avg_pts = recent_stats.get("season_avg_pts", 0)
         mins = recent_stats["min"]
-        if pts > season_avg_pts:
-            if pts >= 18:
-                score += 3
-                signals.append(f"Hot scorer: {pts} pts avg last {recent_stats['games']}g")
-            elif pts >= 12:
-                score += 2
-                signals.append(f"Solid scorer: {pts} pts avg last {recent_stats['games']}g")
-            elif pts >= 7:
-                score += 1
-                signals.append(f"Moderate scorer: {pts} pts avg last {recent_stats['games']}g")
-            # pts > season_avg but < 7: no points, no message
+        if pts_recent >= season_avg_pts:
+            score += 1
+            signals.append(f"Forma recente acima da média (15j: {pts_recent} pts vs {season_avg_pts} pts/g na season)")
 
         if mins >= 25:
             signals.append(f"High usage: {mins} min avg")
 
     # --- Signal 3: Zone match (required gate) ---
+    # If the player's primary zone doesn't match where the opponent concedes,
+    # the play isn't valid regardless of DvP rank or scoring form.
     primary_zone = _get_primary_zone(player_zones) if player_zones else None
     weakest_zone = _get_opponent_weakest_zone(opponent_defense_zones)
 
@@ -152,16 +143,21 @@ def _score_player(position, opponent_name, dvp, recent_stats, season_avg_pts, pl
         zone_str = f"{primary_zone} ({pz['frequency']}% freq, {pz['pct']}% FG)"
 
         if player_cat == opponent_cat:
-            score += 1
+            score += 2
             signals.append(f"Zone match: scores from {zone_str} -{opponent_name} concedes most there ({weakest_zone})")
         else:
             # Zone mismatch: discard this player
             return 0, None, []
 
+    # --- Signal 4: Stepping up (0-1 pt) ---
+    if is_stepping_up:
+        score += 1
+        signals.append("Stepping up due to teammate injury")
+
     # --- Rating ---
-    if score >= 7:
+    if score >= 6:
         rating = "BEST OF THE NIGHT"
-    elif score >= 5:
+    elif score >= 4:
         rating = "VERY FAVORABLE"
     else:
         rating = None
@@ -180,8 +176,8 @@ def run_analysis(games, lineups, dvp):
     print("  Fetching team defensive zone data...")
     all_defense_zones = get_all_teams_defense_zones()
 
-    print("  Fetching player season stats (starter filter)...")
-    season_stats = get_player_season_stats()
+    print("  Fetching player season minutes (starter filter)...")
+    season_minutes = get_player_season_minutes()
 
     # Build tricode → team_id map from today's games
     tricode_to_team_id = {}
@@ -229,16 +225,13 @@ def run_analysis(games, lineups, dvp):
                 # We use season-avg minutes as a starter proxy (LeagueDashPlayerStats
                 # does not expose GS). Players averaging >= 27 min/game this season
                 # are regular starters and must be skipped.
-                player_season = season_stats.get(player_id)
-                if player_season is None:
+                min_avg = season_minutes.get(player_id)
+                if min_avg is None:
                     print(f"  [skip] {player_name} - insufficient season data (<5 games)")
                     continue
-                min_avg = player_season["min"]
                 if min_avg >= STARTER_MIN_THRESHOLD:
                     print(f"  [skip] {player_name} - regular starter ({min_avg} min/g this season)")
                     continue
-
-                season_avg_pts = player_season["pts"]  # safe: player_season is not None at this point
 
                 print(f"  Analyzing {player_name} ({player_tricode} vs {opponent_tricode}, {min_avg} min/g)...")
 
@@ -254,7 +247,6 @@ def run_analysis(games, lineups, dvp):
                     opponent_name=opponent_name,
                     dvp=dvp,
                     recent_stats=recent_stats,
-                    season_avg_pts=season_avg_pts,
                     player_zones=player_zones,
                     opponent_defense_zones=opponent_defense_zones,
                     is_stepping_up=True,  # always True: bench player on injured team

@@ -206,18 +206,21 @@ def get_player_season_stats():
 
 def get_player_recent_stats(player_id, last_n_games=15):
     """
-    Returns a player's average stats over their last N games.
-    {'pts': 14.2, 'reb': 5.1, 'ast': 3.0, 'min': 28.4, 'games': 15}
+    Returns a player's average stats over their last N games plus the season avg pts.
+    {'pts': 14.2, 'reb': 5.1, 'ast': 3.0, 'min': 28.4, 'games': 15, 'season_avg_pts': 12.8}
     """
     time.sleep(DELAY)
-    df = _retry(lambda: playergamelog.PlayerGameLog(
+    full_df = _retry(lambda: playergamelog.PlayerGameLog(
         player_id=player_id,
         season=SEASON,
         season_type_all_star="Regular Season",
-    ).get_data_frames()[0].head(last_n_games))
+    ).get_data_frames()[0])
 
-    if df.empty:
+    if full_df.empty:
         return {}
+
+    season_avg_pts = round(float(full_df["PTS"].mean()), 1)
+    df = full_df.head(last_n_games)
 
     return {
         "pts": round(float(df["PTS"].mean()), 1),
@@ -225,4 +228,5 @@ def get_player_recent_stats(player_id, last_n_games=15):
         "ast": round(float(df["AST"].mean()), 1),
         "min": round(float(df["MIN"].astype(float).mean()), 1),
         "games": len(df),
+        "season_avg_pts": season_avg_pts,
     }
