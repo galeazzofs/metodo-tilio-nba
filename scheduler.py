@@ -36,17 +36,17 @@ def init_scheduler():
 
     _scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
 
-    # Daily check: todo dia às 10h BRT
+    # Daily check: todo dia às 16h BRT
     _scheduler.add_job(
         daily_check,
-        CronTrigger(hour=10, minute=0, timezone="America/Sao_Paulo"),
+        CronTrigger(hour=16, minute=0, timezone="America/Sao_Paulo"),
         id="daily_check",
         replace_existing=True,
         misfire_grace_time=3600,  # tolera até 1h de atraso (cold start do Render)
     )
 
     _scheduler.start()
-    logger.info("[scheduler] APScheduler iniciado — daily_check às 10h BRT")
+    logger.info("[scheduler] APScheduler iniciado — daily_check às 16h BRT")
 
 
 def trigger_now():
