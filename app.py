@@ -123,6 +123,15 @@ def _run_analysis():
             except Exception as _e:
                 print(f"  [firestore] Aviso ao salvar análise manual: {_e}")
 
+        # Notifica Telegram (melhor esforço — falha silenciosa)
+        try:
+            from scrapers.telegram import send_analysis
+            from datetime import date
+            send_analysis(candidates, date.today().isoformat(), len(games))
+            print("  [telegram] Notificação enviada ✓")
+        except Exception as _te:
+            print(f"  [telegram] Aviso: não foi possível enviar — {_te}")
+
     except Exception as e:
         with state_lock:
             analysis_state["status"] = "error"
