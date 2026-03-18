@@ -97,25 +97,26 @@ def _best_dvp_rank(position, opponent_name, dvp):
 
 def _score_player(position, opponent_name, dvp, recent_stats, player_zones, opponent_defense_zones, is_stepping_up):
     """
-    Score a player 0-6 across four signals.
+    Score a player 0-6 across three signals (stepping up is a mandatory gate).
     Thresholds: 6 = BEST OF THE NIGHT, 4-5 = VERY FAVORABLE.
     Returns (score, rating, signals_list).
     """
     score = 0
     signals = []
 
+    # --- Gate 0: Stepping up (mandatory) ---
+    if not is_stepping_up:
+        return 0, None, []
+
     # --- Signal 1: DvP rank (0-3 pts) ---
     dvp_rank, dvp_pts = _best_dvp_rank(position, opponent_name, dvp)
     if dvp_rank is None:
         return 0, None, []
-    if dvp_rank <= 8:
+    if dvp_rank <= 6:
         score += 3
         signals.append(f"Elite matchup vs {opponent_name} (DvP #{dvp_rank}, {dvp_pts} pts/g allowed)")
-    elif dvp_rank <= 12:
-        score += 2
-        signals.append(f"Good matchup vs {opponent_name} (DvP #{dvp_rank}, {dvp_pts} pts/g allowed)")
     else:
-        # Rank > 12: not worth surfacing
+        # Rank > 6: not worth surfacing
         return 0, None, []
 
     # --- Signal 2: Recent form vs season avg (0-1 pt) ---
@@ -148,11 +149,6 @@ def _score_player(position, opponent_name, dvp, recent_stats, player_zones, oppo
         else:
             # Zone mismatch: discard this player
             return 0, None, []
-
-    # --- Signal 4: Stepping up (0-1 pt) ---
-    if is_stepping_up:
-        score += 1
-        signals.append("Stepping up due to teammate injury")
 
     # --- Rating ---
     if score >= 6:
