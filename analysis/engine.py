@@ -198,14 +198,20 @@ def run_analysis(games, lineups, dvp):
             if not team_data:
                 continue
 
-            has_injuries = bool(team_data.get("out"))
             opponent_name = opponent_data.get("team_name", opponent_tricode)
             opponent_team_id = tricode_to_team_id.get(opponent_tricode)
             opponent_defense_zones = all_defense_zones.get(opponent_team_id, {})
 
-            # Core rule: only look at teams that have someone OUT tonight.
-            # There is no replacement player to find if nobody is missing.
-            if not has_injuries:
+            # Core rule: only look at teams where a *starter* is out tonight.
+            # A bench player being out creates no stepping-up opportunity.
+            out_starters = []
+            for p in team_data.get("out", []):
+                pid = _find_player_id(p["name"])
+                if pid and season_minutes.get(pid, 0) >= STARTER_MIN_THRESHOLD:
+                    out_starters.append(p["name"])
+
+            if not out_starters:
+                print(f"  [skip] {player_tricode} - no starter out tonight (only bench players out or no injuries)")
                 continue
 
             for starter in team_data.get("starters", []):
@@ -259,6 +265,7 @@ def run_analysis(games, lineups, dvp):
                         "signals": signals,
                         "recent_stats": recent_stats,
                         "primary_zone": _get_primary_zone(player_zones),
+                        "replaces": out_starters,
                     })
 
     # One best player per game → top 5 overall
