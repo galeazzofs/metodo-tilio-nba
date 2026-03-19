@@ -14,22 +14,38 @@ function ensurePlugins() {
   if (_pluginsRegistered) return;
   _pluginsRegistered = true;
 
-  // Gradient fill for line chart
+  // Gradient line + fill: green above R$0, red below R$0
   Chart.register({
     id: 'lineGradientFill',
     afterLayout(chart) {
       if (chart.config.type !== 'line') return;
-      const { ctx, chartArea } = chart;
-      if (!chartArea) return;
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales.y) return;
       const ds = chart.data.datasets[0];
-      const isPos = (ds._isPositive !== false);
-      // isPos → green #16a34a  |  isNeg → red #dc2626
-      const r = isPos ? 22  : 220, g = isPos ? 163 : 38, b = isPos ? 74  : 38;
-      const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-      gradient.addColorStop(0,   `rgba(${r},${g},${b},0.18)`);
-      gradient.addColorStop(0.5, `rgba(${r},${g},${b},0.05)`);
-      gradient.addColorStop(1,   `rgba(${r},${g},${b},0)`);
-      ds.backgroundColor = gradient;
+
+      const GREEN = '#16a34a';
+      const RED   = '#dc2626';
+
+      const zeroY = scales.y.getPixelForValue(0);
+      const { top, bottom } = chartArea;
+      // ratio of where y=0 falls within the chart area (0=top, 1=bottom)
+      const pct = Math.max(0, Math.min(1, (zeroY - top) / (bottom - top)));
+
+      // Line gradient (borderColor)
+      const lineGrad = ctx.createLinearGradient(0, top, 0, bottom);
+      lineGrad.addColorStop(0,   GREEN);
+      lineGrad.addColorStop(pct, GREEN);
+      lineGrad.addColorStop(pct, RED);
+      lineGrad.addColorStop(1,   RED);
+      ds.borderColor = lineGrad;
+
+      // Fill gradient (backgroundColor)
+      const fillGrad = ctx.createLinearGradient(0, top, 0, bottom);
+      fillGrad.addColorStop(0,   'rgba(22,163,74,0.18)');
+      fillGrad.addColorStop(pct, 'rgba(22,163,74,0.04)');
+      fillGrad.addColorStop(pct, 'rgba(220,38,38,0.04)');
+      fillGrad.addColorStop(1,   'rgba(220,38,38,0.16)');
+      ds.backgroundColor = fillGrad;
     },
   });
 }
@@ -163,7 +179,7 @@ function renderPainel(bets) {
       <div class="dash-chart-card">
         <div class="dash-chart-hdr">
           <div>
-            <div class="dch-title">Acumulação P&amp;L</div>
+            <div class="dch-title">Acumulado P&amp;L</div>
             <div class="dch-sub">Evolução diária de lucro e prejuízo</div>
           </div>
           <div class="dch-range-btns">
@@ -339,21 +355,16 @@ function drawLineChart(bets) {
     data.push(parseFloat(cum.toFixed(2)));
   });
 
-  const finalVal  = data.length > 0 ? data[data.length - 1] : 0;
-  const isPositive = finalVal >= 0;
-  const lineColor  = isPositive ? '#16a34a' : '#dc2626';
-
   const ds = {
     label: 'P&L Acumulado',
     data,
-    borderColor: lineColor,
-    backgroundColor: isPositive ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.06)',
-    _isPositive: isPositive,
+    borderColor: '#16a34a',        // overridden by lineGradientFill plugin
+    backgroundColor: 'transparent', // overridden by lineGradientFill plugin
     fill: true,
     tension: 0.4,
     pointRadius: 0,
     pointHoverRadius: 5,
-    pointHoverBackgroundColor: lineColor,
+    pointHoverBackgroundColor: ctx => ctx.parsed.y >= 0 ? '#16a34a' : '#dc2626',
     pointHoverBorderColor: '#ffffff',
     pointHoverBorderWidth: 2,
     borderWidth: 2.5,

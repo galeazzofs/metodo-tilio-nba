@@ -6,7 +6,7 @@
   <title>SCOUT · NBA Intelligence</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
 
     /* ══════════════════════════════════════
@@ -56,9 +56,10 @@
       --radius:  12px;
       --transition: 0.15s ease;
 
-      --font-brand: 'Syne', sans-serif;
-      --font-body:  'Inter', sans-serif;
-      --font-mono:  'IBM Plex Mono', monospace;
+      --font-brand:   'Syne', sans-serif;
+      --font-body:    'Inter', sans-serif;
+      --font-mono:    'IBM Plex Mono', monospace;
+      --font-poppins: 'Poppins', sans-serif;
     }
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -946,8 +947,8 @@
     }
 
     .dkpi-label {
-      font-family: var(--font-mono); font-size: 10px;
-      letter-spacing: 0.1em; color: var(--muted);
+      font-family: var(--font-poppins); font-size: 10px; font-weight: 600;
+      letter-spacing: 0.08em; color: var(--muted);
       text-transform: uppercase; margin-bottom: 12px;
     }
 
@@ -957,7 +958,7 @@
     }
 
     .dkpi-val {
-      font-family: var(--font-brand); font-weight: 800;
+      font-family: var(--font-poppins); font-weight: 800;
       font-size: clamp(20px, 2.4vw, 28px);
       letter-spacing: -0.02em; line-height: 1; color: var(--text);
     }
@@ -966,7 +967,7 @@
     .dkpi-neg { color: var(--red); }
 
     .dkpi-badge {
-      font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+      font-family: var(--font-poppins); font-size: 11px; font-weight: 500;
       padding: 2px 7px; border-radius: 4px; white-space: nowrap;
     }
     .dbadge-pos { background: rgba(22,163,74,0.1); color: var(--green); }
@@ -985,7 +986,7 @@
     .dkpi-prog.kpf-red   { background: var(--red); }
 
     .dkpi-sub {
-      font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+      font-family: var(--font-poppins); font-size: 10px; font-weight: 400; color: var(--muted);
     }
 
     /* ══════════════════════════════════════
