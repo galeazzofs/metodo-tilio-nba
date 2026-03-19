@@ -358,7 +358,7 @@ def _make_games():
 
 def _patch_run_analysis(season_minutes, out_players, candidate_name="Bench Player", candidate_pos="PG"):
     """
-    Returns (games, lineups, dvp) and the patches needed to test run_analysis
+    Returns (games, lineups, dvp) for testing run_analysis
     without real NBA API calls.
 
     season_minutes: dict mapping player_id → avg minutes
@@ -380,10 +380,8 @@ def _patch_run_analysis(season_minutes, out_players, candidate_name="Bench Playe
 def test_run_analysis_position_gate_compatible_starter_out_yields_candidate():
     """
     When the out starter's position is compatible with the candidate's position,
-    the candidate is not skipped by the position gate and can reach scoring.
-    (With a good DvP, recent stats, and no zone data the player may not score
-     high enough to appear in results — we just verify no crash and the gate
-     allows the candidate through. An empty result is acceptable here.)
+    the candidate is not skipped by the position gate and reaches scoring.
+    With DVP rank 2 and recent pts above season avg, score = 4 (VERY FAVORABLE).
     """
     # PG out, PG candidate — positions match
     out_players = [{"name": "Star PG", "position": "PG"}]
