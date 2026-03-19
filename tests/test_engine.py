@@ -1,6 +1,6 @@
 # tests/test_engine.py
 from unittest.mock import patch
-from analysis.engine import _score_player, run_analysis
+from analysis.engine import _score_player, run_analysis, _position_compatible
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -267,3 +267,78 @@ def test_run_analysis_wiring_no_type_error():
 
     # No TypeError = wiring is correct. Result may be empty (dvp={} means no DvP match).
     assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# _position_compatible
+# ---------------------------------------------------------------------------
+
+OUT_PG = {"name": "Star PG", "position": "PG"}
+OUT_C  = {"name": "Star C",  "position": "C"}
+OUT_SF = {"name": "Star SF", "position": "SF"}
+OUT_G  = {"name": "Star G",  "position": "G"}   # composite label from RotoWire
+OUT_F  = {"name": "Star F",  "position": "F"}   # composite label from RotoWire
+
+def test_position_compat_pg_candidate_matches_pg_out():
+    result = _position_compatible("PG", [OUT_PG])
+    assert result == [OUT_PG]
+
+def test_position_compat_pg_candidate_matches_g_out():
+    # G (composite guard) out — PG candidate qualifies
+    result = _position_compatible("PG", [OUT_G])
+    assert result == [OUT_G]
+
+def test_position_compat_pg_candidate_no_match_for_c_out():
+    result = _position_compatible("PG", [OUT_C])
+    assert result == []
+
+def test_position_compat_c_candidate_matches_pf_out():
+    out_pf = {"name": "Star PF", "position": "PF"}
+    result = _position_compatible("C", [out_pf])
+    assert result == [out_pf]
+
+def test_position_compat_c_candidate_no_match_for_sf_out():
+    result = _position_compatible("C", [OUT_SF])
+    assert result == []
+
+def test_position_compat_f_candidate_no_match_for_c_out():
+    # F (wing/stretch-four) does NOT cover a C out — intentional asymmetry
+    result = _position_compatible("F", [OUT_C])
+    assert result == []
+
+def test_position_compat_pf_candidate_matches_c_out():
+    # PF covers a C out (true bigs overlap)
+    result = _position_compatible("PF", [OUT_C])
+    assert result == [OUT_C]
+
+def test_position_compat_multiple_out_returns_only_matches():
+    # PG out and C out — SG candidate matches PG but not C
+    out_c  = {"name": "Star C",  "position": "C"}
+    out_pg = {"name": "Star PG", "position": "PG"}
+    result = _position_compatible("SG", [out_c, out_pg])
+    assert result == [out_pg]
+
+def test_position_compat_unknown_candidate_position_returns_empty():
+    result = _position_compatible("UNKNOWN", [OUT_PG])
+    assert result == []
+
+def test_position_compat_missing_position_key_returns_empty():
+    # out player dict with no "position" key — must not raise
+    out_no_pos = {"name": "Mystery Player"}
+    result = _position_compatible("PG", [out_no_pos])
+    assert result == []
+
+def test_position_compat_composite_f_out_matches_sf_candidate():
+    # "F" as an out-starter label — SF candidate should qualify
+    result = _position_compatible("SF", [OUT_F])
+    assert result == [OUT_F]
+
+def test_position_compat_composite_f_out_no_match_for_c_candidate():
+    result = _position_compatible("C", [OUT_F])
+    assert result == []
+
+def test_position_compat_g_candidate_matches_sg_out():
+    # G (composite guard candidate) covers SG out
+    out_sg = {"name": "Star SG", "position": "SG"}
+    result = _position_compatible("G", [out_sg])
+    assert result == [out_sg]

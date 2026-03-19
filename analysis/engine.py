@@ -25,6 +25,16 @@ POSITION_MAP = {
     "F":  ["SF", "PF"],
 }
 
+POSITION_COMPAT = {
+    "PG": {"PG", "SG", "G"},
+    "SG": {"SG", "PG", "G"},
+    "G":  {"G",  "PG", "SG"},
+    "SF": {"SF", "PF", "F"},
+    "PF": {"PF", "SF", "F", "C"},
+    "F":  {"F",  "SF", "PF"},
+    "C":  {"C",  "PF"},
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -93,6 +103,18 @@ def _best_dvp_rank(position, opponent_name, dvp):
                     best_pts = data["pts"]
 
     return best_rank, best_pts
+
+
+def _position_compatible(candidate_pos, out_starters):
+    """
+    Returns the subset of out_starters that this candidate can replace.
+
+    Looks up candidate_pos in POSITION_COMPAT to get the set of out-starter
+    positions this candidate covers, then filters out_starters to those whose
+    position falls in that set.
+    """
+    allowed = POSITION_COMPAT.get(candidate_pos, set())
+    return [s for s in out_starters if s.get("position", "") in allowed]
 
 
 def _score_player(position, opponent_name, dvp, recent_stats, player_zones, opponent_defense_zones, is_stepping_up):
