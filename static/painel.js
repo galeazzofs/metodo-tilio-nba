@@ -5,7 +5,7 @@ let _chartResultado = null;
 let _chartTipo      = null;
 let _pluginsRegistered = false;
 
-let _chartRange    = 'ALL';
+let _panelFilter   = 'all'; // 'week' | 'month' | 'year' | 'all'
 let _allBetsCache  = null;
 let _filteredCache = null;
 
@@ -50,6 +50,30 @@ function ensurePlugins() {
   });
 }
 
+// ── Panel date filter ─────────────────────────────────────────────────────
+function applyPanelFilter(bets) {
+  const now = new Date();
+  if (_panelFilter === 'week') {
+    const day = now.getDay(); // 0=Sun, 1=Mon...
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    return bets.filter(b => b.data >= monday.toISOString().slice(0, 10));
+  }
+  if (_panelFilter === 'month') {
+    const de = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    return bets.filter(b => b.data >= de);
+  }
+  if (_panelFilter === 'year') {
+    return bets.filter(b => b.data >= `${now.getFullYear()}-01-01`);
+  }
+  return bets; // 'all'
+}
+
+function setPanelFilter(f) {
+  _panelFilter = f;
+  if (_allBetsCache) renderPainel();
+}
+
 // ── Load & render ─────────────────────────────────────────────────────────
 async function loadPainel() {
   const container = document.getElementById('tab-painel');
@@ -58,17 +82,16 @@ async function loadPainel() {
   try {
     const res = await authFetch('/api/bets');
     if (!res.ok) throw new Error('Erro ao carregar apostas');
-    const bets = await res.json();
-    _allBetsCache = bets;
-    renderPainel(bets);
+    _allBetsCache = await res.json();
+    renderPainel();
   } catch (e) {
     container.innerHTML = `<div style="padding:60px;text-align:center;color:var(--red);font-family:var(--font-mono);font-size:12px">${e.message}</div>`;
   }
 }
 
-function renderPainel(bets) {
+function renderPainel() {
   ensurePlugins();
-  _allBetsCache = bets;
+  const bets = _allBetsCache || [];
   const container = document.getElementById('tab-painel');
 
   if (bets.length === 0) {
@@ -82,11 +105,7 @@ function renderPainel(bets) {
     return;
   }
 
-  const de  = document.getElementById('painelDe')?.value  || '';
-  const ate = document.getElementById('painelAte')?.value || '';
-  let filtered = bets;
-  if (de)  filtered = filtered.filter(b => b.data >= de);
-  if (ate) filtered = filtered.filter(b => b.data <= ate);
+  const filtered = applyPanelFilter(bets);
   _filteredCache = filtered;
 
   const s = calcStats(filtered);
@@ -110,7 +129,7 @@ function renderPainel(bets) {
   const winFill = s.winRate !== null && s.winRate >= 55 ? 'kpf-lime'
                 : s.winRate !== null && s.winRate >= 40 ? 'kpf-gold' : 'kpf-red';
 
-  const rb = r => _chartRange === r ? 'active' : '';
+  const pf = f => _panelFilter === f ? 'active' : '';
 
   container.innerHTML = `
     <div class="pg-wrap">
@@ -121,11 +140,11 @@ function renderPainel(bets) {
           <h1 class="section-title">PAINEL</h1>
           <div class="section-sub">Performance &amp; Analytics</div>
         </div>
-        <div class="hdr-actions" style="align-items:center;gap:8px">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">De</span>
-          <input type="date" class="f-input" id="painelDe" value="${de}" onchange="loadPainel()" />
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">Até</span>
-          <input type="date" class="f-input" id="painelAte" value="${ate}" onchange="loadPainel()" />
+        <div class="dch-range-btns">
+          <button class="dch-range-btn ${pf('week')}"  onclick="setPanelFilter('week')">SEMANA</button>
+          <button class="dch-range-btn ${pf('month')}" onclick="setPanelFilter('month')">MÊS</button>
+          <button class="dch-range-btn ${pf('year')}"  onclick="setPanelFilter('year')">ANO</button>
+          <button class="dch-range-btn ${pf('all')}"   onclick="setPanelFilter('all')">TUDO</button>
         </div>
       </div>
 
@@ -182,12 +201,6 @@ function renderPainel(bets) {
             <div class="dch-title">Acumulado P&amp;L</div>
             <div class="dch-sub">Evolução diária de lucro e prejuízo</div>
           </div>
-          <div class="dch-range-btns">
-            <button class="dch-range-btn ${rb('1W')}"  onclick="setChartRange('1W')">1S</button>
-            <button class="dch-range-btn ${rb('1M')}"  onclick="setChartRange('1M')">1M</button>
-            <button class="dch-range-btn ${rb('3M')}"  onclick="setChartRange('3M')">3M</button>
-            <button class="dch-range-btn ${rb('ALL')}" onclick="setChartRange('ALL')">TUDO</button>
-          </div>
         </div>
         <canvas id="chartLucro" style="max-height:240px"></canvas>
       </div>
@@ -217,29 +230,6 @@ function renderPainel(bets) {
   _chartLucro = _chartResultado = _chartTipo = null;
   drawCharts(filtered, s);
   renderTypesList(filtered);
-}
-
-// ── Chart range filter ────────────────────────────────────────────────────
-function setChartRange(range) {
-  _chartRange = range;
-
-  // Update button states
-  const labelMap = { '1S': '1W', '1M': '1M', '3M': '3M', 'TUDO': 'ALL' };
-  document.querySelectorAll('.dch-range-btn').forEach(btn => {
-    btn.classList.toggle('active', labelMap[btn.textContent.trim()] === range);
-  });
-
-  if (_chartLucro) { _chartLucro.destroy(); _chartLucro = null; }
-  drawLineChart(_filteredCache || []);
-}
-
-function getRangeBets(bets) {
-  if (_chartRange === 'ALL') return bets;
-  const days = { '1W': 7, '1M': 30, '3M': 90 }[_chartRange];
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return bets.filter(b => b.data >= cutoffStr);
 }
 
 // ── Render "Results by Type" HTML list ────────────────────────────────────
@@ -342,7 +332,7 @@ function drawCharts(bets, stats) {
 }
 
 function drawLineChart(bets) {
-  const ranged = getRangeBets(bets)
+  const ranged = bets
     .filter(b => b.resultado !== 'pendente')
     .sort((a, b) => a.data.localeCompare(b.data));
 

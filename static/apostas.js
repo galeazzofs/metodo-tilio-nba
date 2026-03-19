@@ -19,46 +19,25 @@ document.addEventListener('paste', (e) => {
 
 async function loadApostas() {
   const container = document.getElementById('tab-apostas');
-  container.innerHTML = '<div style="padding:60px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em">Carregando...</div>';
+  const shellExists = !!document.getElementById('betList');
+
+  if (!shellExists) {
+    container.innerHTML = '<div style="padding:60px;text-align:center;color:var(--muted);font-family:var(--font-mono);font-size:12px;letter-spacing:0.08em">Carregando...</div>';
+  }
 
   try {
     const res = await authFetch('/api/bets');
     if (!res.ok) throw new Error('Erro ao carregar apostas');
     _allBets = await res.json();
+    if (!document.getElementById('betList')) setupApostasShell();
     renderApostas();
   } catch (e) {
     container.innerHTML = `<div style="padding:60px;text-align:center;color:var(--red);font-family:var(--font-mono);font-size:12px">${e.message}</div>`;
   }
 }
 
-function renderApostas() {
+function setupApostasShell() {
   const container = document.getElementById('tab-apostas');
-
-  const q   = (document.getElementById('filtroTexto')?.value    || '').toLowerCase();
-  const res = (document.getElementById('filtroResultado')?.value || 'todos');
-  const de  =  document.getElementById('filtroDe')?.value  || '';
-  const ate =  document.getElementById('filtroAte')?.value || '';
-
-  let bets = [..._allBets].sort((a, b) => b.data.localeCompare(a.data));
-  if (q)           bets = bets.filter(b => b.partida?.toLowerCase().includes(q) || b.descricao?.toLowerCase().includes(q));
-  if (res !== 'todos') bets = bets.filter(b => b.resultado === res);
-  if (de)          bets = bets.filter(b => b.data >= de);
-  if (ate)         bets = bets.filter(b => b.data <= ate);
-
-  const betCards = bets.length === 0
-    ? `<div style="text-align:center;padding:60px 24px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em">
-         Nenhuma aposta encontrada.
-       </div>`
-    : bets.map(buildBetCard).join('');
-
-  const emptyState = _allBets.length === 0 ? `
-    <div style="text-align:center;padding:80px 24px">
-      <div style="font-size:44px;margin-bottom:16px;opacity:0.4">◎</div>
-      <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;line-height:1.8">
-        NENHUMA APOSTA REGISTRADA<br>Importe ou adicione manualmente.
-      </p>
-    </div>` : '';
-
   container.innerHTML = `
     <div class="pg-wrap">
 
@@ -93,8 +72,8 @@ function renderApostas() {
         <input type="date" class="f-input" id="filtroAte" onchange="renderApostas()" />
       </div>
 
-      <!-- Bet cards -->
-      ${emptyState || `<div class="bet-list">${betCards}</div>`}
+      <!-- Bet list (updated by renderApostas) -->
+      <div id="betList"></div>
 
     </div>
 
@@ -216,6 +195,39 @@ function renderApostas() {
         </button>
       </div>
     </div>`;
+}
+
+function renderApostas() {
+  const betList = document.getElementById('betList');
+  if (!betList) return;
+
+  const q   = (document.getElementById('filtroTexto')?.value    || '').toLowerCase();
+  const res = (document.getElementById('filtroResultado')?.value || 'todos');
+  const de  =  document.getElementById('filtroDe')?.value  || '';
+  const ate =  document.getElementById('filtroAte')?.value || '';
+
+  if (_allBets.length === 0) {
+    betList.innerHTML = `
+      <div style="text-align:center;padding:80px 24px">
+        <div style="font-size:44px;margin-bottom:16px;opacity:0.4">◎</div>
+        <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);letter-spacing:0.08em;line-height:1.8">
+          NENHUMA APOSTA REGISTRADA<br>Importe ou adicione manualmente.
+        </p>
+      </div>`;
+    return;
+  }
+
+  let bets = [..._allBets].sort((a, b) => b.data.localeCompare(a.data));
+  if (q)               bets = bets.filter(b => b.partida?.toLowerCase().includes(q) || b.descricao?.toLowerCase().includes(q));
+  if (res !== 'todos') bets = bets.filter(b => b.resultado === res);
+  if (de)              bets = bets.filter(b => b.data >= de);
+  if (ate)             bets = bets.filter(b => b.data <= ate);
+
+  betList.innerHTML = bets.length === 0
+    ? `<div style="text-align:center;padding:60px 24px;color:var(--muted);font-family:var(--font-mono);font-size:11px;letter-spacing:0.08em">
+         Nenhuma aposta encontrada.
+       </div>`
+    : `<div class="bet-list">${bets.map(buildBetCard).join('')}</div>`;
 }
 
 // ── Bet card builder ─────────────────────────────────────────────────────
