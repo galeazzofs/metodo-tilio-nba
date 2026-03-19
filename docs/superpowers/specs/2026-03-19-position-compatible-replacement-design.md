@@ -36,7 +36,9 @@ POSITION_COMPAT = {
 }
 ```
 
-Keys are the **out starter's position**. Values are the set of **candidate positions** that can legitimately fill that role.
+Keys are the **candidate's position**. Values are the set of **out starter positions** that the candidate can legitimately cover.
+
+The mapping is symmetric by design (if A can cover B, B can cover A), so it can be read in either direction without ambiguity. Symmetry must be preserved when editing this table.
 
 Design rationale:
 - Guards (PG/SG/G) are interchangeable within the backcourt.
@@ -53,10 +55,10 @@ out_starters.append(p["name"])
 
 **New:**
 ```python
-out_starters.append({"name": p["name"], "position": p["position"]})
+out_starters.append({"name": p["name"], "position": p.get("position", "")})
 ```
 
-RotoWire already provides position data for out players; this change simply captures it.
+`p.get("position", "")` is used defensively: if RotoWire omits the position key, the empty string falls through to `POSITION_COMPAT.get("", set())` which returns an empty set, so no candidate qualifies for that out player. RotoWire already provides position data in practice; this is purely defensive.
 
 ### 3. New helper — `_position_compatible`
 
@@ -107,10 +109,11 @@ Previously it contained all out starters regardless of position. Now it contains
 
 | Scenario | Behaviour |
 |---|---|
-| Out player has no position in RotoWire data | `p["position"]` is an empty string or missing → `POSITION_COMPAT.get("")` returns `set()` → no candidates qualify for that out player (safe default) |
+| Out player has no position in RotoWire data | `p.get("position", "")` returns `""` → `POSITION_COMPAT.get("", set())` returns empty set → no candidates qualify for that out player (safe default) |
 | Candidate position not in `POSITION_COMPAT` | `POSITION_COMPAT.get(candidate_pos, set())` returns empty set → candidate is skipped (safe default) |
 | Multiple starters out, candidate matches at least one | Candidate proceeds; `replaces` lists only the matched starters |
 | Multiple starters out, candidate matches none | Candidate is skipped |
+| Out player listed with composite position label (`"G"` or `"F"`) | `POSITION_COMPAT` has explicit entries for `"G"` and `"F"` as candidate keys; the symmetric mapping means they also work correctly when they appear as out starter positions — covered by the table |
 
 ---
 
