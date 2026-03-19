@@ -42,8 +42,8 @@ def get_defense_vs_position():
     for pos in POSITIONS:
         # GC-15 = last 15 days, consistent with our player stats window
         rows = [
-            r for r in soup.select(f"#data-table tbody tr.{pos}")
-            if "GC-15" in r.get("class", [])
+            r for r in soup.select("#data-table tbody tr")
+            if "GC-15" in r.get("class", []) and pos in r.get("class", [])
         ]
         # Sort by pts descending to assign rank (1 = most pts allowed = easiest matchup)
         team_pts = []

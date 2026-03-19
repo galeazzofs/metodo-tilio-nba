@@ -9,6 +9,7 @@ function initAnalise() {
   document.getElementById('dateChip').textContent =
     new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   fetchStatus();
+  loadHistory();
 }
 
 // ── ações ──────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ function handleState(d) {
     showBadge('done', '<span class="dot"></span> Análise concluída');
     setRunBtn(true, 'Rodar Novamente');
     renderResults(d.results);
+    loadHistory();
 
   } else if (d.status === 'error') {
     clearInterval(pollTimer);
@@ -172,6 +174,10 @@ function buildCard(p, g) {
       ${statCell(p.recent_stats.games + 'j', 'AMOSTRA')}
     </div>` : '';
 
+  const lineDisplay = p.line != null
+    ? `<span class="line-value">${p.line} pts</span>`
+    : `<span class="line-na">N/A</span>`;
+
   return `
     <div class="card card-${css}">
       <div class="card-head">
@@ -182,7 +188,10 @@ function buildCard(p, g) {
             <span class="card-meta">${esc(p.team)} &middot; ${esc(p.game)}</span>
           </div>
         </div>
-        <span class="rating-tag tag-${css}">${esc(g.tagLabel)}</span>
+        <div class="card-head-right">
+          <span class="rating-tag tag-${css}">${esc(g.tagLabel)}</span>
+          <span class="line-label">Linha: ${lineDisplay}</span>
+        </div>
       </div>
       <div class="signals">${signals}</div>
       ${stats}
@@ -195,4 +204,105 @@ function statCell(val, label) {
       <div class="stat-val">${val}</div>
       <div class="stat-lbl">${label}</div>
     </div>`;
+}
+
+// ── Histórico de análises ──────────────────────────────────────────────────
+
+const HIST_CSS = {
+  'BEST OF THE NIGHT': 'hist-chip-best',
+  'VERY FAVORABLE':    'hist-chip-very',
+  'FAVORABLE':         'hist-chip-fav',
+};
+
+async function loadHistory() {
+  try {
+    const r = await authFetch('/api/analyses');
+    if (!r.ok) return;
+    const analyses = await r.json();
+    renderHistory(analyses);
+  } catch (e) {
+    // Silencioso — histórico é feature secundária
+    console.warn('[hist] Falha ao carregar histórico:', e);
+  }
+}
+
+function renderHistory(analyses) {
+  // Remove seção anterior se existir
+  const old = document.getElementById('histSection');
+  if (old) old.remove();
+
+  const resultsEl = document.getElementById('results');
+  if (!resultsEl) return;
+
+  if (!analyses || analyses.length === 0) return;
+
+  const section = document.createElement('div');
+  section.id = 'histSection';
+  section.className = 'hist-section';
+
+  section.innerHTML = `
+    <div class="hist-header">
+      <span class="hist-title">Histórico</span>
+      <span class="hist-count">${analyses.length} dia(s) com jogadas</span>
+    </div>
+    <div id="histList">
+      ${analyses.map(a => buildHistEntry(a)).join('')}
+    </div>`;
+
+  resultsEl.insertAdjacentElement('afterend', section);
+}
+
+function buildHistEntry(analysis) {
+  const dateDisplay = _fmtHistDate(analysis.date);
+  const trigger     = analysis.triggered_by === 'manual' ? 'manual' : 'auto';
+  const badgeCss    = trigger === 'auto' ? 'hist-badge-auto' : 'hist-badge-manual';
+  const badgeTxt    = trigger === 'auto' ? '⚡ Auto' : '▶ Manual';
+
+  const chips = (analysis.results || []).map(p => {
+    const css = HIST_CSS[p.rating] || 'hist-chip-fav';
+    return `<span class="hist-cand-chip ${css}">${esc(p.player)}</span>`;
+  }).join('');
+
+  const cards = (analysis.results || []).map(p => {
+    const g = GROUPS.find(g => g.key === p.rating) || GROUPS[2];
+    return buildCard(p, g);
+  }).join('');
+
+  const id = `hist-${analysis.date}`;
+
+  return `
+    <div class="hist-entry" id="${id}">
+      <div class="hist-entry-head" onclick="toggleHistEntry('${id}')">
+        <span class="hist-date">${dateDisplay}</span>
+        <span class="hist-games">${analysis.game_count || '?'} jogos</span>
+        <div class="hist-candidates">${chips}</div>
+        <span class="hist-trigger-badge ${badgeCss}">${badgeTxt}</span>
+        <span class="hist-chevron" id="${id}-chevron">▾</span>
+      </div>
+      <div class="hist-body" id="${id}-body">
+        ${cards || '<div class="hist-empty">Sem candidatos neste dia.</div>'}
+      </div>
+    </div>`;
+}
+
+function toggleHistEntry(id) {
+  const head    = document.querySelector(`#${id} .hist-entry-head`);
+  const body    = document.getElementById(`${id}-body`);
+  const chevron = document.getElementById(`${id}-chevron`);
+  if (!head || !body || !chevron) return;
+
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  head.classList.toggle('open', !isOpen);
+  chevron.classList.toggle('open', !isOpen);
+}
+
+function _fmtHistDate(dateStr) {
+  // '2026-03-18' → 'Ter, 18 Mar'
+  try {
+    const d = new Date(dateStr + 'T12:00:00'); // noon para evitar problema de timezone
+    return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+  } catch {
+    return dateStr;
+  }
 }

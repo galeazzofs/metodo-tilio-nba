@@ -97,42 +97,36 @@ def _best_dvp_rank(position, opponent_name, dvp):
 
 def _score_player(position, opponent_name, dvp, recent_stats, player_zones, opponent_defense_zones, is_stepping_up):
     """
-    Score a player 0-8 across four signals.
-    Thresholds: 8 = BEST OF THE NIGHT, 6-7 = VERY FAVORABLE, 4-5 = FAVORABLE.
+    Score a player 0-6 across three signals (stepping up is a mandatory gate).
+    Thresholds: 6 = BEST OF THE NIGHT, 4-5 = VERY FAVORABLE.
     Returns (score, rating, signals_list).
     """
     score = 0
     signals = []
 
+    # --- Gate 0: Stepping up (mandatory) ---
+    if not is_stepping_up:
+        return 0, None, []
+
     # --- Signal 1: DvP rank (0-3 pts) ---
     dvp_rank, dvp_pts = _best_dvp_rank(position, opponent_name, dvp)
     if dvp_rank is None:
         return 0, None, []
-    if dvp_rank <= 8:
+    if dvp_rank <= 6:
         score += 3
         signals.append(f"Elite matchup vs {opponent_name} (DvP #{dvp_rank}, {dvp_pts} pts/g allowed)")
-    elif dvp_rank <= 12:
-        score += 2
-        signals.append(f"Good matchup vs {opponent_name} (DvP #{dvp_rank}, {dvp_pts} pts/g allowed)")
     else:
-        # Rank > 12: not worth surfacing
+        # Rank > 6: not worth surfacing
         return 0, None, []
 
-    # --- Signal 2: Recent scoring form (0-3 pts) ---
+    # --- Signal 2: Recent form vs season avg (0-1 pt) ---
     if recent_stats:
-        pts = recent_stats["pts"]
+        pts_recent = recent_stats["pts"]
+        season_avg_pts = recent_stats.get("season_avg_pts", 0)
         mins = recent_stats["min"]
-        if pts >= 18:
-            score += 3
-            signals.append(f"Hot scorer: {pts} pts avg last {recent_stats['games']}g")
-        elif pts >= 12:
-            score += 2
-            signals.append(f"Solid scorer: {pts} pts avg last {recent_stats['games']}g")
-        elif pts >= 7:
+        if pts_recent >= season_avg_pts:
             score += 1
-            signals.append(f"Moderate scorer: {pts} pts avg last {recent_stats['games']}g")
-        else:
-            signals.append(f"Low scorer: {pts} pts avg last {recent_stats['games']}g")
+            signals.append(f"Forma recente acima da média (15j: {pts_recent} pts vs {season_avg_pts} pts/g na season)")
 
         if mins >= 25:
             signals.append(f"High usage: {mins} min avg")
@@ -150,24 +144,17 @@ def _score_player(position, opponent_name, dvp, recent_stats, player_zones, oppo
         zone_str = f"{primary_zone} ({pz['frequency']}% freq, {pz['pct']}% FG)"
 
         if player_cat == opponent_cat:
-            score += 1
+            score += 2
             signals.append(f"Zone match: scores from {zone_str} -{opponent_name} concedes most there ({weakest_zone})")
         else:
             # Zone mismatch: discard this player
             return 0, None, []
 
-    # --- Signal 4: Stepping up (0-1 pt) ---
-    if is_stepping_up:
-        score += 1
-        signals.append("Stepping up due to teammate injury")
-
     # --- Rating ---
-    if score >= 8:
+    if score >= 6:
         rating = "BEST OF THE NIGHT"
-    elif score >= 6:
-        rating = "VERY FAVORABLE"
     elif score >= 4:
-        rating = "FAVORABLE"
+        rating = "VERY FAVORABLE"
     else:
         rating = None
 

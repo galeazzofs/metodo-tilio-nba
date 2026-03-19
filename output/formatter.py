@@ -34,6 +34,8 @@ def format_results(candidates):
             icon = RATING_ICON.get(p["rating"], "")
             lines.append(f"  #{rank} {p['player']} ({p['position']}) - {p['team']}")
             lines.append(f"      {icon} {p['rating']}")
+            line_str = f"{p['line']} pts" if p.get("line") is not None else "N/A"
+            lines.append(f"      Line: {line_str}")
 
             # Signals
             for signal in p["signals"]:
