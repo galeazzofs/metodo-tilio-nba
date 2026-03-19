@@ -230,7 +230,7 @@ def run_analysis(games, lineups, dvp):
             for p in team_data.get("out", []):
                 pid = _find_player_id(p["name"])
                 if pid and season_minutes.get(pid, 0) >= STARTER_MIN_THRESHOLD:
-                    out_starters.append(p["name"])
+                    out_starters.append({"name": p["name"], "position": p.get("position", "")})
 
             if not out_starters:
                 print(f"  [skip] {player_tricode} - no starter out tonight (only bench players out or no injuries)")
@@ -255,6 +255,12 @@ def run_analysis(games, lineups, dvp):
                     continue
                 if min_avg >= STARTER_MIN_THRESHOLD:
                     print(f"  [skip] {player_name} - regular starter ({min_avg} min/g this season)")
+                    continue
+
+                # --- Position gate: candidate must cover at least one out starter ---
+                matched_starters = _position_compatible(position, out_starters)
+                if not matched_starters:
+                    print(f"  [skip] {player_name} - no position-compatible starter out ({position})")
                     continue
 
                 print(f"  Analyzing {player_name} ({player_tricode} vs {opponent_tricode}, {min_avg} min/g)...")
@@ -287,7 +293,7 @@ def run_analysis(games, lineups, dvp):
                         "signals": signals,
                         "recent_stats": recent_stats,
                         "primary_zone": _get_primary_zone(player_zones),
-                        "replaces": out_starters,
+                        "replaces": [s["name"] for s in matched_starters],
                     })
 
     # One best player per game → top 5 overall
