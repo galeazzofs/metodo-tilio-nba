@@ -82,7 +82,7 @@ Returns a list. Empty list means no valid replacement scenario exists for this c
 
 ### 4. Gate in the candidate loop
 
-Inserted after the existing `min_avg < STARTER_MIN_THRESHOLD` check, before `_score_player` is called:
+Inserted after the existing `if min_avg >= STARTER_MIN_THRESHOLD: continue` check (the second of the two min-threshold guards), before `_score_player` is called:
 
 ```python
 matched_starters = _position_compatible(position, out_starters)
@@ -119,6 +119,7 @@ Previously it contained all out starters regardless of position. Now it contains
 | Candidate position not in `POSITION_COMPAT` | `POSITION_COMPAT.get(candidate_pos, set())` returns empty set → candidate is skipped (safe default) |
 | Multiple starters out, candidate matches at least one | Candidate proceeds; `replaces` lists only the matched starters |
 | Multiple starters out, candidate matches none | Candidate is skipped |
+| Out starter is a C, candidate is a PF | `POSITION_COMPAT["PF"]` includes `"C"` → PF candidate qualifies (covered by the PF↔C big overlap rationale) |
 | Out starter listed with composite position label (`"G"` or `"F"`) | When out starter position is `"G"`: `POSITION_COMPAT["PG"]`, `["SG"]`, and `["G"]` all include `"G"` in their value sets, so guard candidates qualify. When out starter is `"F"`: `POSITION_COMPAT["SF"]`, `["PF"]`, and `["F"]` all include `"F"`, so forward candidates qualify. C candidates do not match an `"F"` out (intentional — see rationale). |
 
 ---
