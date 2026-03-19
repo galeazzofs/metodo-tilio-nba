@@ -36,14 +36,13 @@ POSITION_COMPAT = {
 }
 ```
 
-Keys are the **candidate's position**. Values are the set of **out starter positions** that the candidate can legitimately cover.
-
-The mapping is symmetric by design (if A can cover B, B can cover A), so it can be read in either direction without ambiguity. Symmetry must be preserved when editing this table.
+Keys are the **candidate's position**. Values are the set of **out starter positions** that the candidate can legitimately cover. The helper looks up by candidate position and checks whether the out starter's position is in the resulting set.
 
 Design rationale:
 - Guards (PG/SG/G) are interchangeable within the backcourt.
 - Forwards (SF/PF/F) are interchangeable within the frontcourt.
-- A C can replace a PF (and vice versa) but not backcourt players.
+- A PF can cover a C out (and vice versa) — true bigs overlap.
+- An F (composite wing/stretch-four) does **not** cover a C out — F players are not true centers. This is an intentional asymmetry: `"F"` ≠ `"PF"` in terms of center coverage.
 - A PG cannot replace a C or SF — position families do not cross.
 
 ### 2. `out_starters` stores dicts, not just names
@@ -60,19 +59,26 @@ out_starters.append({"name": p["name"], "position": p.get("position", "")})
 
 `p.get("position", "")` is used defensively: if RotoWire omits the position key, the empty string falls through to `POSITION_COMPAT.get("", set())` which returns an empty set, so no candidate qualifies for that out player. RotoWire already provides position data in practice; this is purely defensive.
 
+Both `out` players and `starters` items in the RotoWire lineup data carry a `position` field. The `starters` items already use `starter["position"]` (direct key access) at line 219 of engine.py — that access is pre-existing and unchanged. The defensive `p.get` is applied only to the new `out` player access in this spec.
+
 ### 3. New helper — `_position_compatible`
 
 ```python
 def _position_compatible(candidate_pos, out_starters):
     """
-    Returns the subset of out_starters whose position is compatible
-    with the given candidate position.
+    Returns the subset of out_starters that this candidate can replace.
+
+    Looks up candidate_pos in POSITION_COMPAT to get the set of out-starter
+    positions this candidate covers, then filters out_starters to those whose
+    position falls in that set.
     """
     allowed = POSITION_COMPAT.get(candidate_pos, set())
     return [s for s in out_starters if s["position"] in allowed]
 ```
 
 Returns a list. Empty list means no valid replacement scenario exists for this candidate.
+
+`out_starters` is a local variable scoped to the inner `for player_tricode` loop in `run_analysis`. It is not used outside that loop except through the candidate dict's `replaces` field.
 
 ### 4. Gate in the candidate loop
 
@@ -113,7 +119,7 @@ Previously it contained all out starters regardless of position. Now it contains
 | Candidate position not in `POSITION_COMPAT` | `POSITION_COMPAT.get(candidate_pos, set())` returns empty set → candidate is skipped (safe default) |
 | Multiple starters out, candidate matches at least one | Candidate proceeds; `replaces` lists only the matched starters |
 | Multiple starters out, candidate matches none | Candidate is skipped |
-| Out player listed with composite position label (`"G"` or `"F"`) | `POSITION_COMPAT` has explicit entries for `"G"` and `"F"` as candidate keys; the symmetric mapping means they also work correctly when they appear as out starter positions — covered by the table |
+| Out starter listed with composite position label (`"G"` or `"F"`) | When out starter position is `"G"`: `POSITION_COMPAT["PG"]`, `["SG"]`, and `["G"]` all include `"G"` in their value sets, so guard candidates qualify. When out starter is `"F"`: `POSITION_COMPAT["SF"]`, `["PF"]`, and `["F"]` all include `"F"`, so forward candidates qualify. C candidates do not match an `"F"` out (intentional — see rationale). |
 
 ---
 
