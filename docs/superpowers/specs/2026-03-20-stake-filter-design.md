@@ -75,8 +75,8 @@ If a `team_id` from `get_todays_games()` is absent from the standings dict (e.g.
 - Add `filter_games_by_stake(games: list, standings: dict) → list`
   - Uses `home_team_id`/`away_team_id` to look up each team in `standings`; uses `home_tricode`/`away_tricode` for display labels in log lines
   - Logs each decision (included/skipped) with both `games_back_from_above` and `games_ahead_of_below` values for each team
-  - When both teams have a stake, select the team with the tighter margin. Tighter margin = `min(v for v in [games_back_from_above, games_ahead_of_below] if v is not None)` (treat `None` as infinity, never selecting it). Log that team's line and append `" (both)"` to its reason tag — e.g., `can improve (both)` or `can be caught (both)`
-  - Seed notation format: `{PlayoffRank}{Conference[0].upper()}` — e.g., `12E` for 12th seed East, `3W` for 3rd seed West. Adjacent seed ordinals in log lines use `seed ± 1` rendered as an ordinal (e.g., seed 12 → `11th` above, `13th` below)
+  - When both teams have a stake, log detail lines for **both** teams as normal. Select the team with the tighter margin and append `" (both)"` only to that team's reason tag — e.g., `can improve (both)` or `can be caught (both)`. Tighter margin = `min(v for v in [games_back_from_above, games_ahead_of_below] if v is not None)` (treat `None` as infinity, never selecting it)
+  - Seed notation format: `{PlayoffRank}{Conference[0].upper()}` — e.g., `12E` for 12th seed East, `3W` for 3rd seed West. Adjacent seed ordinals in log lines use `seed ± 1` rendered as an ordinal (e.g., seed 12 → `11th` above, `13th` below). When there is no adjacent seed in a direction (seed 1 has none above; seed 15 has none below), display that slot as `"n/a above"` or `"n/a below"` respectively
 
 ### `main.py`
 - Fetch standings after `get_todays_games()`
