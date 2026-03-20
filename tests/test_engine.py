@@ -1,6 +1,6 @@
 # tests/test_engine.py
 from unittest.mock import patch
-from analysis.engine import _score_player, run_analysis, _position_compatible
+from analysis.engine import _score_player, run_analysis, _position_compatible, _team_has_stake
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -342,6 +342,83 @@ def test_position_compat_g_candidate_matches_sg_out():
     out_sg = {"name": "Star SG", "position": "SG"}
     result = _position_compatible("G", [out_sg])
     assert result == [out_sg]
+
+
+# ---------------------------------------------------------------------------
+# _team_has_stake
+# ---------------------------------------------------------------------------
+
+def _standing(seed, gb_above, gb_below, remaining):
+    return {
+        "seed": seed,
+        "games_back_from_above": gb_above,
+        "games_ahead_of_below": gb_below,
+        "games_remaining": remaining,
+    }
+
+
+def test_has_stake_can_improve():
+    """Team can reach the seed above within remaining games."""
+    data = _standing(seed=8, gb_above=3.0, gb_below=10.0, remaining=10)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is True
+    assert tag == "can improve"
+
+
+def test_has_stake_can_be_caught():
+    """Team cannot improve but can be caught from below."""
+    data = _standing(seed=3, gb_above=15.0, gb_below=2.0, remaining=10)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is True
+    assert tag == "can be caught"
+
+
+def test_has_stake_both_conditions_true_returns_can_improve():
+    """When both conditions are true, tag is 'can improve'."""
+    data = _standing(seed=5, gb_above=4.0, gb_below=3.0, remaining=10)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is True
+    assert tag == "can improve"
+
+
+def test_has_stake_eliminated():
+    """Both conditions false — team is eliminated."""
+    data = _standing(seed=13, gb_above=12.0, gb_below=7.0, remaining=6)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is False
+    assert tag == "eliminated"
+
+
+def test_has_stake_seed1_no_above():
+    """Seed 1 has games_back_from_above=None — can_improve is always False."""
+    data = _standing(seed=1, gb_above=None, gb_below=3.0, remaining=8)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is True   # can be caught
+    assert tag == "can be caught"
+
+
+def test_has_stake_seed15_no_below():
+    """Seed 15 has games_ahead_of_below=None — can_be_caught is always False."""
+    data = _standing(seed=15, gb_above=4.0, gb_below=None, remaining=8)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is True   # can still improve
+    assert tag == "can improve"
+
+
+def test_has_stake_exact_boundary_games_back_equals_remaining():
+    """games_back_from_above == games_remaining — can_improve is True (<=, not <)."""
+    data = _standing(seed=10, gb_above=5.0, gb_below=20.0, remaining=5)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is True
+    assert tag == "can improve"
+
+
+def test_has_stake_one_game_over_remaining():
+    """games_back_from_above > games_remaining — can_improve is False."""
+    data = _standing(seed=10, gb_above=6.0, gb_below=20.0, remaining=5)
+    has_stake, tag = _team_has_stake(data)
+    assert has_stake is False
+    assert tag == "eliminated"
 
 
 # ---------------------------------------------------------------------------

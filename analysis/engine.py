@@ -117,6 +117,35 @@ def _position_compatible(candidate_pos, out_starters):
     return [s for s in out_starters if s.get("position", "") in allowed]
 
 
+def _team_has_stake(team_data):
+    """
+    Returns (has_stake: bool, reason_tag: str).
+
+    reason_tag is one of: "can improve", "can be caught", "eliminated"
+
+    Stake conditions:
+      can_improve  = games_back_from_above is not None
+                     and games_back_from_above <= games_remaining
+      can_be_caught = games_ahead_of_below is not None
+                      and games_ahead_of_below <= games_remaining
+
+    When both are True, returns "can improve" as the primary tag.
+    filter_games_by_stake is responsible for appending " (both)" when needed.
+    """
+    gb_above = team_data.get("games_back_from_above")
+    gb_below = team_data.get("games_ahead_of_below")
+    remaining = team_data.get("games_remaining", 0)
+
+    can_improve = gb_above is not None and gb_above <= remaining
+    can_be_caught = gb_below is not None and gb_below <= remaining
+
+    if can_improve:
+        return True, "can improve"
+    if can_be_caught:
+        return True, "can be caught"
+    return False, "eliminated"
+
+
 def _score_player(position, opponent_name, dvp, recent_stats, player_zones, opponent_defense_zones, is_stepping_up):
     """
     Score a player 0-6 across three signals (stepping up is a mandatory gate).
