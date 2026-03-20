@@ -23,8 +23,8 @@ function ensurePlugins() {
       if (!chartArea || !scales.y) return;
       const ds = chart.data.datasets[0];
 
-      const GREEN = '#16a34a';
-      const RED   = '#dc2626';
+      const GREEN = '#22c55e';
+      const RED   = '#ef4444';
 
       const zeroY = scales.y.getPixelForValue(0);
       const { top, bottom } = chartArea;
@@ -41,10 +41,10 @@ function ensurePlugins() {
 
       // Fill gradient (backgroundColor)
       const fillGrad = ctx.createLinearGradient(0, top, 0, bottom);
-      fillGrad.addColorStop(0,   'rgba(22,163,74,0.18)');
-      fillGrad.addColorStop(pct, 'rgba(22,163,74,0.04)');
-      fillGrad.addColorStop(pct, 'rgba(220,38,38,0.04)');
-      fillGrad.addColorStop(1,   'rgba(220,38,38,0.16)');
+      fillGrad.addColorStop(0,   'rgba(34,197,94,0.2)');
+      fillGrad.addColorStop(pct, 'rgba(34,197,94,0.03)');
+      fillGrad.addColorStop(pct, 'rgba(239,68,68,0.03)');
+      fillGrad.addColorStop(1,   'rgba(239,68,68,0.18)');
       ds.backgroundColor = fillGrad;
     },
   });
@@ -253,7 +253,7 @@ function renderTypesList(bets) {
   }
 
   const maxAbs = Math.max(...entries.map(([, v]) => Math.abs(v)), 1);
-  const dotColors = ['#623cea', '#0891b2', '#d97706', '#8b5cf6', '#0d9488', '#54426b'];
+  const dotColors = ['#f59e0b', '#06b6d4', '#22c55e', '#a78bfa', '#f472b6', '#fb923c'];
 
   el.innerHTML = entries.map(([tipo, val], i) => {
     const pct   = (Math.abs(val) / maxAbs * 100).toFixed(1);
@@ -310,18 +310,18 @@ function calcStats(bets) {
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────
-const _GRID  = 'rgba(84,66,107,0.07)';
-const _TICK  = 'rgba(84,66,107,0.45)';
-const _MONO  = { family: '"IBM Plex Mono"', size: 10 };
+const _GRID  = 'rgba(228,228,231,0.05)';
+const _TICK  = 'rgba(228,228,231,0.35)';
+const _MONO  = { family: '"JetBrains Mono"', size: 10 };
 const _TT    = {
-  backgroundColor: '#ffffff',
-  borderColor: '#dbd5b2',
+  backgroundColor: '#1a1a26',
+  borderColor: 'rgba(245,158,11,0.15)',
   borderWidth: 1,
-  titleColor: 'rgba(84,66,107,0.55)',
-  bodyColor: '#54426b',
+  titleColor: 'rgba(228,228,231,0.5)',
+  bodyColor: '#e4e4e7',
   padding: 12,
-  titleFont: { family: '"IBM Plex Mono"', size: 10 },
-  bodyFont:  { family: '"IBM Plex Mono"', size: 12, weight: '500' },
+  titleFont: { family: '"JetBrains Mono"', size: 10 },
+  bodyFont:  { family: '"JetBrains Mono"', size: 12, weight: '500' },
   displayColors: false,
   cornerRadius: 8,
 };
@@ -348,13 +348,13 @@ function drawLineChart(bets) {
   const ds = {
     label: 'P&L Acumulado',
     data,
-    borderColor: '#16a34a',        // overridden by lineGradientFill plugin
+    borderColor: '#22c55e',        // overridden by lineGradientFill plugin
     backgroundColor: 'transparent', // overridden by lineGradientFill plugin
     fill: true,
     tension: 0.4,
     pointRadius: 0,
     pointHoverRadius: 5,
-    pointHoverBackgroundColor: ctx => ctx.parsed.y >= 0 ? '#16a34a' : '#dc2626',
+    pointHoverBackgroundColor: ctx => ctx.parsed.y >= 0 ? '#22c55e' : '#ef4444',
     pointHoverBorderColor: '#ffffff',
     pointHoverBorderWidth: 2,
     borderWidth: 2.5,
@@ -383,7 +383,7 @@ function drawLineChart(bets) {
         x: {
           ticks: { color: _TICK, maxTicksLimit: 8, font: _MONO },
           grid:  { color: _GRID },
-          border: { color: 'rgba(84,66,107,0.1)' },
+          border: { color: 'rgba(228,228,231,0.06)' },
         },
         y: {
           ticks: {
@@ -391,7 +391,7 @@ function drawLineChart(bets) {
             callback: v => (v >= 0 ? '+' : '') + 'R$' + v.toFixed(0),
           },
           grid:  { color: _GRID },
-          border: { color: 'rgba(84,66,107,0.1)' },
+          border: { color: 'rgba(228,228,231,0.06)' },
         },
       },
     },
@@ -423,9 +423,9 @@ function drawBetsBarChart(bets, stats) {
   const maxVal = Math.max(...data, 1);
   const maxIdx = data.indexOf(maxVal);
   const bgColors = data.map((v, i) => {
-    if (i === maxIdx) return 'rgba(98,60,234,0.85)';
+    if (i === maxIdx) return 'rgba(245,158,11,0.85)';
     const t = v / maxVal;
-    return `rgba(98,60,234,${0.18 + t * 0.52})`;
+    return `rgba(245,158,11,${0.15 + t * 0.55})`;
   });
 
   _chartTipo = new Chart(document.getElementById('chartTipo'), {
@@ -455,12 +455,12 @@ function drawBetsBarChart(bets, stats) {
         x: {
           ticks: { color: _TICK, font: _MONO, maxTicksLimit: 8 },
           grid:  { display: false },
-          border: { color: 'rgba(84,66,107,0.1)' },
+          border: { color: 'rgba(228,228,231,0.06)' },
         },
         y: {
           ticks: { color: _TICK, font: _MONO, stepSize: 1 },
           grid:  { color: _GRID },
-          border: { color: 'rgba(84,66,107,0.1)' },
+          border: { color: 'rgba(228,228,231,0.06)' },
         },
       },
     },
