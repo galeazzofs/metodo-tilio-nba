@@ -120,7 +120,7 @@ Included game (both teams have stake):
 ```
 [stake-filter] BOS @ CLE — included (both teams have stake)
   BOS: seed 1E, n/a above, 4.5 ahead of 2nd (below), 8 remaining → can be caught
-  CLE: seed 2E, 4.5 GB from 1st (above), 3.0 ahead of 3rd (below), 8 remaining → can improve (both)
+  CLE: seed 2E, 4.5 GB from 1st (above), 3.0 ahead of 3rd (below), 8 remaining → can be caught (both)
 ```
 
 ## Out of Scope
