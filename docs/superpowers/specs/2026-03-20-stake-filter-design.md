@@ -70,13 +70,13 @@ If a `team_id` from `get_todays_games()` is absent from the standings dict (e.g.
 
 ### `analysis/engine.py`
 - Add `_team_has_stake(team_data: dict) → tuple[bool, str]`
-  - Returns `(True, reason_tag)` or `(False, reason_tag)` where `reason_tag` is a short label: `"can improve"`, `"can be caught"`, `"has stake (both)"`, or `"eliminated"`
+  - Returns `(True, reason_tag)` or `(False, reason_tag)` where `reason_tag` is a short label: `"can improve"`, `"can be caught"`, or `"eliminated"`
   - `filter_games_by_stake` is responsible for assembling the full log line from the tag and team data
 - Add `filter_games_by_stake(games: list, standings: dict) → list`
-  - Filters to games where at least one team has a stake
-  - Logs each decision (included/skipped) with both `games_back_from_above` and `games_ahead_of_below` values
-  - When both teams have a stake, logs the one with the tighter margin (`min(games_back_from_above, games_ahead_of_below)`) and appends `"(both teams have stake)"`
-  - Seed notation format: `{PlayoffRank}{Conference[0].upper()}` — e.g., `12E` for 12th seed East, `3W` for 3rd seed West
+  - Uses `home_team_id`/`away_team_id` to look up each team in `standings`; uses `home_tricode`/`away_tricode` for display labels in log lines
+  - Logs each decision (included/skipped) with both `games_back_from_above` and `games_ahead_of_below` values for each team
+  - When both teams have a stake, select the team with the tighter margin. Tighter margin = `min(v for v in [games_back_from_above, games_ahead_of_below] if v is not None)` (treat `None` as infinity, never selecting it). Log that team's line and append `" (both)"` to its reason tag — e.g., `can improve (both)` or `can be caught (both)`
+  - Seed notation format: `{PlayoffRank}{Conference[0].upper()}` — e.g., `12E` for 12th seed East, `3W` for 3rd seed West. Adjacent seed ordinals in log lines use `seed ± 1` rendered as an ordinal (e.g., seed 12 → `11th` above, `13th` below)
 
 ### `main.py`
 - Fetch standings after `get_todays_games()`
