@@ -6,6 +6,7 @@ from nba_api.stats.endpoints import (
     playergamelog,
     leaguedashteamshotlocations,
     leaguedashplayerstats,
+    leaguestandingsv3,
 )
 
 SEASON = "2025-26"
@@ -229,3 +230,74 @@ def get_player_recent_stats(player_id, last_n_games=15):
         "games": len(df),
         "season_avg_pts": season_avg_pts,
     }
+
+
+def get_conference_standings():
+    """
+    Returns per-team standing data keyed by team_id, for use by the stake filter.
+
+    {
+        team_id: {
+            "team_id": int,
+            "conference": "East" | "West",
+            "seed": int,                       # 1–15 within conference
+            "wins": int,
+            "losses": int,
+            "games_remaining": int,            # 82 - wins - losses
+            "games_back_from_above": float | None,   # None for seed 1
+            "games_ahead_of_below": float | None,    # None for seed 15
+        },
+        ...
+    }
+
+    ConferenceGamesBack for the conference leader is returned by the API as
+    None or "-" — both are treated as 0.0 for gap computation.
+    """
+    time.sleep(DELAY)
+    df = _retry(lambda: leaguestandingsv3.LeagueStandingsV3(
+        season=SEASON,
+        season_type="Regular Season",
+    ).get_data_frames()[0])
+
+    def _to_float(val):
+        """Convert API ConferenceGamesBack to float; treat None, NaN and '-' as 0.0."""
+        if val is None:
+            return 0.0
+        try:
+            import math
+            if math.isnan(float(val)):
+                return 0.0
+        except (TypeError, ValueError):
+            pass
+        if str(val).strip() == "-":
+            return 0.0
+        return float(val)
+
+    # Group by conference, sort by seed, compute adjacent gaps
+    result = {}
+    for conf in ("East", "West"):
+        conf_rows = df[df["Conference"] == conf].copy()
+        conf_rows = conf_rows.sort_values("PlayoffRank").reset_index(drop=True)
+        gb_values = [_to_float(row["ConferenceGamesBack"]) for _, row in conf_rows.iterrows()]
+
+        for i, (_, row) in enumerate(conf_rows.iterrows()):
+            team_id = int(row["TeamID"])
+            seed = int(row["PlayoffRank"])
+            wins = int(row["WINS"])
+            losses = int(row["LOSSES"])
+
+            games_back_from_above = (gb_values[i] - gb_values[i - 1]) if i > 0 else None
+            games_ahead_of_below = (gb_values[i + 1] - gb_values[i]) if i < len(gb_values) - 1 else None
+
+            result[team_id] = {
+                "team_id": team_id,
+                "conference": conf,
+                "seed": seed,
+                "wins": wins,
+                "losses": losses,
+                "games_remaining": 82 - wins - losses,
+                "games_back_from_above": games_back_from_above,
+                "games_ahead_of_below": games_ahead_of_below,
+            }
+
+    return result
