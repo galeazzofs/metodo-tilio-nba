@@ -1,6 +1,6 @@
 # tests/test_engine.py
 from unittest.mock import patch
-from analysis.engine import _score_player, run_analysis, _position_compatible, _team_has_stake
+from analysis.engine import _score_player, run_analysis, _position_compatible, _team_has_stake, filter_games_by_stake
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -419,6 +419,93 @@ def test_has_stake_one_game_over_remaining():
     has_stake, tag = _team_has_stake(data)
     assert has_stake is False
     assert tag == "eliminated"
+
+
+# ---------------------------------------------------------------------------
+# filter_games_by_stake
+# ---------------------------------------------------------------------------
+
+def _make_game(home_id=1, away_id=2, home_tri="HME", away_tri="AWY"):
+    return {
+        "home_team_id": home_id, "away_team_id": away_id,
+        "home_tricode": home_tri, "away_tricode": away_tri,
+    }
+
+
+def _make_standing(team_id, seed, conf, gb_above, gb_below, remaining=10):
+    return {
+        "team_id": team_id, "seed": seed, "conference": conf,
+        "games_back_from_above": gb_above,
+        "games_ahead_of_below": gb_below,
+        "games_remaining": remaining,
+    }
+
+
+def test_filter_includes_game_when_home_team_has_stake():
+    games = [_make_game()]
+    standings = {
+        1: _make_standing(1, seed=8, conf="East", gb_above=3.0, gb_below=10.0),
+        2: _make_standing(2, seed=13, conf="East", gb_above=12.0, gb_below=5.0),
+    }
+    result = filter_games_by_stake(games, standings)
+    assert result == games
+
+
+def test_filter_includes_game_when_away_team_has_stake():
+    games = [_make_game()]
+    standings = {
+        1: _make_standing(1, seed=14, conf="East", gb_above=15.0, gb_below=3.0),
+        2: _make_standing(2, seed=9, conf="East", gb_above=2.0, gb_below=8.0),
+    }
+    result = filter_games_by_stake(games, standings)
+    assert result == games
+
+
+def test_filter_excludes_game_when_both_eliminated():
+    # Both teams eliminated: gb_above > remaining AND gb_below > remaining for each
+    games = [_make_game()]
+    standings = {
+        1: _make_standing(1, seed=13, conf="East", gb_above=12.0, gb_below=8.0, remaining=5),
+        2: _make_standing(2, seed=14, conf="West", gb_above=15.0, gb_below=9.0, remaining=5),
+    }
+    result = filter_games_by_stake(games, standings)
+    assert result == []
+
+
+def test_filter_includes_game_when_both_have_stake():
+    games = [_make_game()]
+    standings = {
+        1: _make_standing(1, seed=3, conf="East", gb_above=2.0, gb_below=1.5),
+        2: _make_standing(2, seed=8, conf="East", gb_above=3.0, gb_below=2.0),
+    }
+    result = filter_games_by_stake(games, standings)
+    assert result == games
+
+
+def test_filter_pass_through_when_team_missing_from_standings(capsys):
+    games = [_make_game(home_id=999)]   # 999 not in standings
+    standings = {
+        2: _make_standing(2, seed=8, conf="East", gb_above=3.0, gb_below=2.0),
+    }
+    result = filter_games_by_stake(games, standings)
+    assert result == games   # pass-through
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.out
+    assert "999" in captured.out
+
+
+def test_filter_multiple_games_mixed_results():
+    game_with_stake = _make_game(home_id=1, away_id=2, home_tri="BOS", away_tri="CLE")
+    game_no_stake   = _make_game(home_id=3, away_id=4, home_tri="MEM", away_tri="SAS")
+    standings = {
+        1: _make_standing(1, seed=1, conf="East", gb_above=None, gb_below=4.0),
+        2: _make_standing(2, seed=2, conf="East", gb_above=4.0,  gb_below=3.0),
+        3: _make_standing(3, seed=12, conf="West", gb_above=10.0, gb_below=6.0, remaining=5),
+        4: _make_standing(4, seed=14, conf="West", gb_above=12.0, gb_below=7.0, remaining=5),
+    }
+    result = filter_games_by_stake([game_with_stake, game_no_stake], standings)
+    assert result == [game_with_stake]
+    assert game_no_stake not in result
 
 
 # ---------------------------------------------------------------------------

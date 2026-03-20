@@ -146,6 +146,100 @@ def _team_has_stake(team_data):
     return False, "eliminated"
 
 
+def _ordinal(n):
+    """Return English ordinal string for integer n (e.g. 1 → '1st', 11 → '11th')."""
+    if 11 <= (n % 100) <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _format_team_line(tricode, team_data, reason_tag):
+    """Build the detail log line for one team, prefixed with tricode."""
+    seed = team_data["seed"]
+    conf = team_data["conference"][0].upper()
+    gb_above = team_data["games_back_from_above"]
+    gb_below = team_data["games_ahead_of_below"]
+    remaining = team_data["games_remaining"]
+
+    above_str = (
+        "n/a above" if gb_above is None
+        else f"{gb_above} GB from {_ordinal(seed - 1)} (above)"
+    )
+    below_str = (
+        "n/a below" if gb_below is None
+        else f"{gb_below} ahead of {_ordinal(seed + 1)} (below)"
+    )
+    return (
+        f"  {tricode}: seed {seed}{conf}, {above_str}, {below_str}, "
+        f"{remaining} remaining → {reason_tag}"
+    )
+
+
+def _tighter_margin(data):
+    """Return the smaller of games_back_from_above / games_ahead_of_below (None = inf)."""
+    vals = [v for v in [data["games_back_from_above"], data["games_ahead_of_below"]] if v is not None]
+    return min(vals) if vals else float("inf")
+
+
+def filter_games_by_stake(games, standings):
+    """
+    Filters games to those where at least one team has playoff/play-in stake.
+
+    A team has a stake if it can still improve its seed OR be caught by the
+    team below it within the remaining games of the regular season.
+
+    Games where a team_id is missing from standings are passed through with a warning.
+    Returns the filtered list (same structure as input).
+    """
+    filtered = []
+
+    for game in games:
+        home_id = game["home_team_id"]
+        away_id = game["away_team_id"]
+        home_tri = game["home_tricode"]
+        away_tri = game["away_tricode"]
+        label = f"{away_tri} @ {home_tri}"
+
+        # Handle missing standings data
+        if home_id not in standings or away_id not in standings:
+            missing = [tid for tid in (home_id, away_id) if tid not in standings]
+            for tid in missing:
+                print(f"[stake-filter] WARNING: no standings data for team_id={tid} — including game by default")
+            filtered.append(game)
+            continue
+
+        home_data = standings[home_id]
+        away_data = standings[away_id]
+
+        home_stake, home_tag = _team_has_stake(home_data)
+        away_stake, away_tag = _team_has_stake(away_data)
+
+        if not home_stake and not away_stake:
+            print(f"[stake-filter] {label} — skipped: neither team has a stake")
+            print(_format_team_line(home_tri, home_data, home_tag))
+            print(_format_team_line(away_tri, away_data, away_tag))
+            continue
+
+        # At least one team has a stake — include the game
+        if home_stake and away_stake:
+            if _tighter_margin(home_data) <= _tighter_margin(away_data):
+                home_tag = home_tag + " (both)"
+            else:
+                away_tag = away_tag + " (both)"
+            print(f"[stake-filter] {label} — included (both teams have stake)")
+        else:
+            print(f"[stake-filter] {label} — included")
+
+        print(_format_team_line(home_tri, home_data, home_tag))
+        print(_format_team_line(away_tri, away_data, away_tag))
+
+        filtered.append(game)
+
+    return filtered
+
+
 def _score_player(position, opponent_name, dvp, recent_stats, player_zones, opponent_defense_zones, is_stepping_up):
     """
     Score a player 0-6 across three signals (stepping up is a mandatory gate).
