@@ -1,8 +1,8 @@
-from scrapers.nba import get_todays_games
+from scrapers.nba import get_todays_games, get_conference_standings
 from scrapers.rotowire import get_projected_lineups
 from scrapers.fantasypros import get_defense_vs_position
 from scrapers.odds import get_event_ids, get_player_lines
-from analysis.engine import run_analysis
+from analysis.engine import run_analysis, filter_games_by_stake
 from output.formatter import format_results
 
 
@@ -14,6 +14,15 @@ def main():
         return
 
     print(f"  {len(games)} games tonight\n")
+
+    print("Filtering games by playoff/play-in stake...")
+    standings = get_conference_standings()
+    games = filter_games_by_stake(games, standings)
+    if not games:
+        print("[main] No games with playoff/play-in stake today — exiting.")
+        return
+
+    print(f"  {len(games)} games with stake\n")
 
     print("Fetching projected lineups (RotoWire)...")
     lineups = get_projected_lineups()
