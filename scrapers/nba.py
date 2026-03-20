@@ -1,3 +1,4 @@
+import math
 import time
 from nba_api.live.nba.endpoints import scoreboard
 from nba_api.stats.endpoints import (
@@ -264,7 +265,6 @@ def get_conference_standings():
         if val is None:
             return 0.0
         try:
-            import math
             if math.isnan(float(val)):
                 return 0.0
         except (TypeError, ValueError):
@@ -295,7 +295,7 @@ def get_conference_standings():
                 "seed": seed,
                 "wins": wins,
                 "losses": losses,
-                "games_remaining": 82 - wins - losses,
+                "games_remaining": max(0, 82 - wins - losses),
                 "games_back_from_above": games_back_from_above,
                 "games_ahead_of_below": games_ahead_of_below,
             }

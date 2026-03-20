@@ -21,8 +21,8 @@ def test_get_conference_standings_basic_structure():
     df = _make_standings_df([
         {"TeamID": 1, "Conference": "East", "PlayoffRank": 1,
          "WINS": 50, "LOSSES": 20, "ConferenceGamesBack": None},
-        {"TeamID": 2, "Conference": "West", "PlayoffRank": 1,
-         "WINS": 48, "LOSSES": 22, "ConferenceGamesBack": None},
+        {"TeamID": 2, "Conference": "East", "PlayoffRank": 2,
+         "WINS": 48, "LOSSES": 22, "ConferenceGamesBack": 2.0},
     ])
     mock_ep = MagicMock()
     mock_ep.get_data_frames.return_value = [df]
@@ -40,7 +40,7 @@ def test_get_conference_standings_basic_structure():
     assert entry["losses"] == 20
     assert entry["games_remaining"] == 12   # 82 - 50 - 20
     assert entry["games_back_from_above"] is None   # seed 1
-    assert isinstance(entry["games_ahead_of_below"], (float, type(None)))
+    assert isinstance(entry["games_ahead_of_below"], float)
 
 
 def test_get_conference_standings_seed1_games_back_from_above_is_none():
