@@ -664,3 +664,43 @@ def test_run_analysis_replaces_field_contains_only_matched_starters():
     assert result, "Expected non-empty result: SG candidate with rank-1 DVP vs TeamB should score >= 4 (VERY FAVORABLE)"
     assert result[0]["replaces"] == ["Star PG"]
     assert "Star C" not in result[0]["replaces"]
+
+
+# ---------------------------------------------------------------------------
+# main() wiring: filter_games_by_stake called before get_projected_lineups
+# ---------------------------------------------------------------------------
+
+def test_filter_games_by_stake_wiring_in_main():
+    """
+    Smoke test: filter_games_by_stake is called before get_projected_lineups
+    when main() runs. Verifies the wiring order, not real standings data.
+    """
+    import main as main_module
+
+    fake_games = [{
+        "home_team_id": 1, "away_team_id": 2,
+        "home_tricode": "HME", "away_tricode": "AWY",
+    }]
+    fake_standings = {
+        1: {"team_id": 1, "seed": 8, "conference": "East",
+            "games_back_from_above": 3.0, "games_ahead_of_below": 10.0, "games_remaining": 10},
+        2: {"team_id": 2, "seed": 13, "conference": "East",
+            "games_back_from_above": 12.0, "games_ahead_of_below": 5.0, "games_remaining": 6},
+    }
+
+    call_order = []
+
+    with patch("main.get_todays_games", return_value=fake_games), \
+         patch("main.get_conference_standings", side_effect=lambda: call_order.append("standings") or fake_standings), \
+         patch("main.filter_games_by_stake", side_effect=lambda g, s: call_order.append("filter") or g) as m_filter, \
+         patch("main.get_projected_lineups", side_effect=lambda: call_order.append("lineups") or {}) as m_lineups, \
+         patch("main.get_defense_vs_position", return_value={}), \
+         patch("main.run_analysis", return_value=[]), \
+         patch("main.get_event_ids", return_value={}), \
+         patch("main.get_player_lines", return_value={}), \
+         patch("main.format_results", return_value=""):
+        main_module.main()
+
+    # standings and filter must precede lineups
+    assert call_order.index("standings") < call_order.index("lineups")
+    assert call_order.index("filter") < call_order.index("lineups")

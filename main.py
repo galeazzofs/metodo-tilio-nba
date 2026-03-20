@@ -15,14 +15,14 @@ def main():
 
     print(f"  {len(games)} games tonight\n")
 
-    print("Filtering games by playoff/play-in stake...")
+    print("Fetching conference standings (stake filter)...")
     standings = get_conference_standings()
     games = filter_games_by_stake(games, standings)
     if not games:
-        print("[main] No games with playoff/play-in stake today — exiting.")
+        print("No games with playoff/play-in implications tonight.")
         return
 
-    print(f"  {len(games)} games with stake\n")
+    print(f"  {len(games)} games with stake tonight\n")
 
     print("Fetching projected lineups (RotoWire)...")
     lineups = get_projected_lineups()
