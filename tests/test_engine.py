@@ -1,6 +1,8 @@
 # tests/test_engine.py
 from unittest.mock import patch
-from analysis.engine import _score_player, run_analysis, _position_compatible, _team_has_stake, filter_games_by_stake
+import io
+import sys
+from analysis.engine import _score_player, run_analysis, _position_compatible, _team_has_stake, filter_games_by_stake, _ordinal
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -421,6 +423,19 @@ def test_has_stake_one_game_over_remaining():
     assert tag == "eliminated"
 
 
+def test_ordinal_correctness():
+    assert _ordinal(1)  == "1st"
+    assert _ordinal(2)  == "2nd"
+    assert _ordinal(3)  == "3rd"
+    assert _ordinal(4)  == "4th"
+    assert _ordinal(11) == "11th"
+    assert _ordinal(12) == "12th"
+    assert _ordinal(13) == "13th"
+    assert _ordinal(21) == "21st"
+    assert _ordinal(22) == "22nd"
+    assert _ordinal(23) == "23rd"
+
+
 # ---------------------------------------------------------------------------
 # filter_games_by_stake
 # ---------------------------------------------------------------------------
@@ -506,6 +521,35 @@ def test_filter_multiple_games_mixed_results():
     result = filter_games_by_stake([game_with_stake, game_no_stake], standings)
     assert result == [game_with_stake]
     assert game_no_stake not in result
+
+
+def test_filter_skipped_logs_correct_format():
+    """Both teams eliminated: log output must contain the expected format strings."""
+    # seed 14E, gb_above=15 > remaining=5 → can't improve; gb_below=None → can't be caught
+    # seed 13W, gb_above=12 > remaining=5 → can't improve; gb_below=9 > remaining=5 → can't be caught
+    game = _make_game(home_id=1, away_id=2, home_tri="HME", away_tri="AWY")
+    standings = {
+        1: _make_standing(1, seed=14, conf="East", gb_above=15.0, gb_below=None, remaining=5),
+        2: _make_standing(2, seed=13, conf="West", gb_above=12.0, gb_below=9.0,  remaining=5),
+    }
+
+    buf = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = buf
+    try:
+        result = filter_games_by_stake([game], standings)
+    finally:
+        sys.stdout = old_stdout
+
+    output = buf.getvalue()
+
+    assert result == []
+    assert "skipped: neither team has a stake" in output
+    assert "seed 14E" in output
+    assert "GB from" in output
+    assert "(above)" in output
+    assert "n/a below" in output
+    assert "\u2192 eliminated" in output
 
 
 # ---------------------------------------------------------------------------
