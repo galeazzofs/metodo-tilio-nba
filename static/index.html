@@ -1615,6 +1615,10 @@
         <span class="nav-dot"></span>
         <span>Análise</span>
       </div>
+      <div class="nav-item" data-tab="nba" onclick="switchTab('nba')">
+        <span class="nav-dot"></span>
+        <span>NBA</span>
+      </div>
       <div class="nav-item" data-tab="apostas" onclick="switchTab('apostas')">
         <span class="nav-dot"></span>
         <span>Apostas</span>
@@ -1659,6 +1663,9 @@
       </div>
     </div>
 
+    <!-- Aba NBA (preenchida pelo JS) -->
+    <div id="tab-nba" class="tab-panel"></div>
+
     <!-- Aba Apostas (preenchida pelo JS) -->
     <div id="tab-apostas" class="tab-panel"></div>
 
@@ -1673,6 +1680,12 @@
           <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
         </svg>
         <span>Análise</span>
+      </button>
+      <button class="bn-item" data-tab="nba" onclick="switchTab(this.dataset.tab)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M4.93 4.93c4.08 2.38 8.58 7.88 14.14 14.14"/><path d="M19.07 4.93c-4.08 2.38-8.58 7.88-14.14 14.14"/>
+        </svg>
+        <span>NBA</span>
       </button>
       <button class="bn-item" data-tab="apostas" onclick="switchTab(this.dataset.tab)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1705,6 +1718,7 @@
 <script src="/static/analise.js"></script>
 <script src="/static/apostas.js"></script>
 <script src="/static/painel.js"></script>
+<script src="/static/nba.js"></script>
 
 <script>
   let _mode = 'entrar';
@@ -1783,6 +1797,7 @@
 
   function animateTab(tabId) {
     const SELECTORS = {
+      nba:     '.dash-kpi, .dash-chart-card, .nba-game-card, .nba-standings-table',
       painel:  '.dash-kpi, .dash-chart-card, .chart-box',
       apostas: '.bet-card',
       analise: '.card',
@@ -1811,6 +1826,7 @@
       b.classList.toggle('active', b.dataset.tab === name)
     );
     history.replaceState(null, '', '#' + name);
+    if (name === 'nba')     loadNBA();
     if (name === 'apostas') loadApostas();
     if (name === 'painel')  loadPainel();
     animateTab(name);
@@ -1825,7 +1841,7 @@
       document.getElementById('userAvatar').textContent = email.charAt(0).toUpperCase() || '?';
       initAnalise();
       const hash = location.hash.replace('#', '');
-      switchTab(['analise','apostas','painel'].includes(hash) ? hash : 'analise');
+      switchTab(['analise','nba','apostas','painel'].includes(hash) ? hash : 'analise');
     } else {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appShell').style.display   = 'none';
