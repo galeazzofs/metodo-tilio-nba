@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from deps import init_firebase, require_auth
 from bets.router import router as bets_router
 from routers.analyses import router as analyses_router
+from routers.nba import router as nba_router
 from scheduler import init_scheduler, shutdown_scheduler, trigger_now
 
 # ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ if os.environ.get("ENV") == "development":
 
 app.include_router(bets_router)
 app.include_router(analyses_router)
+app.include_router(nba_router)
 
 # ---------------------------------------------------------------------------
 # Single-user in-memory analysis state
