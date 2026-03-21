@@ -834,8 +834,9 @@ def get_today_games(uid: str = Depends(require_auth)):
             "injuries": injuries,
         })
 
-    # Sort high stake first
-    enriched.sort(key=lambda x: x["stake_tag"] != "HIGH STAKE")
+    # Sort high stake first: PLAYOFF > PLAY-IN > LOW STAKE
+    stake_order = {"PLAYOFF": 0, "PLAY-IN": 1, "LOW STAKE": 2}
+    enriched.sort(key=lambda x: stake_order.get(x["stake_tag"], 3))
     result = {"games": enriched}
     _cache_set("today", result, ttl=1800)
     return result
@@ -1382,7 +1383,7 @@ function drawAccuracyTrend(analyses) {
   let cumBestHit = 0, cumBestTotal = 0;
   let cumVFHit = 0, cumVFTotal = 0;
 
-  resolved.forEach(a => {
+  sorted.forEach(a => {
     (a.results || []).forEach(r => {
       if (!r.outcome) return;
       cumTotal++;
