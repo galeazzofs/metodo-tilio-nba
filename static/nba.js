@@ -264,7 +264,118 @@ function drawAccuracyScore(picks) {
 
 async function renderLiveData() {
   const el = document.getElementById('nba-live');
-  if (el) el.innerHTML = '<p class="muted" style="padding:1rem 0;">Dados ao Vivo — em breve</p>';
+  if (!el) return;
+
+  el.innerHTML = '<h2 class="section-title" style="margin-top:2rem;">DADOS AO VIVO</h2><p class="muted">Carregando...</p>';
+
+  try {
+    const [standingsRes, todayRes, dvpRes] = await Promise.all([
+      authFetch('/api/nba/standings'),
+      authFetch('/api/nba/today'),
+      authFetch('/api/nba/dvp'),
+    ]);
+
+    const standings = standingsRes.ok ? await standingsRes.json() : null;
+    const today = todayRes.ok ? await todayRes.json() : null;
+    const dvp = dvpRes.ok ? await dvpRes.json() : null;
+
+    const todayTeams = new Set();
+    if (today && today.games) {
+      today.games.forEach(g => { todayTeams.add(g.home_tricode); todayTeams.add(g.away_tricode); });
+    }
+
+    let html = '<h2 class="section-title" style="margin-top:2rem;">DADOS AO VIVO</h2>';
+
+    if (standings) {
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">';
+      html += renderStandingsTable('Eastern Conference', standings.east, todayTeams);
+      html += renderStandingsTable('Western Conference', standings.west, todayTeams);
+      html += '</div>';
+    } else {
+      html += '<div class="muted" style="text-align:center;padding:1rem;">Standings indisponíveis no momento</div>';
+    }
+
+    html += renderTodayGames(today);
+    html += renderDvPSnapshot(dvp);
+    el.innerHTML = html;
+  } catch (err) {
+    el.innerHTML = '<h2 class="section-title" style="margin-top:2rem;">DADOS AO VIVO</h2><p class="red">Erro ao carregar dados ao vivo.</p>';
+    console.error('[nba] live data error:', err);
+  }
+}
+
+function renderStandingsTable(title, teams, todayTeams) {
+  let html = `<div class="dash-chart-card nba-standings-table"><div class="dch-title">${title}</div>`;
+  html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+  html += '<thead><tr style="color:#888;"><th>#</th><th>Time</th><th>W-L</th><th>%</th><th>GB</th></tr></thead><tbody>';
+  teams.forEach(t => {
+    const total = t.wins + t.losses;
+    const pct = total > 0 ? (t.wins / total).toFixed(3) : '.000';
+    const gb = t.games_back_from_above != null ? t.games_back_from_above.toFixed(1) : '—';
+    let borderStyle = '';
+    if (t.seed === 7) borderStyle = 'border-top: 2px solid #f59e0b;';
+    if (t.seed === 11) borderStyle = 'border-top: 2px solid #ef4444;';
+    const highlight = todayTeams.has(String(t.team_id)) ? 'color:#f59e0b;font-weight:600;' : 'color:#ccc;';
+    const teamName = t.team_name || t.team_id || '?';
+    html += `<tr style="${borderStyle}${highlight}"><td style="padding:4px 6px;">${t.seed}</td><td style="padding:4px 6px;">${teamName}</td><td style="padding:4px 6px;">${t.wins}-${t.losses}</td><td style="padding:4px 6px;">${pct}</td><td style="padding:4px 6px;">${gb}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function renderTodayGames(today) {
+  let html = '<h3 class="section-title" style="margin-top:1.5rem;font-size:1rem;">JOGOS DE HOJE</h3>';
+  if (!today || !today.games || today.games.length === 0) {
+    return html + '<div class="muted" style="text-align:center;padding:1rem;">Sem jogos hoje</div>';
+  }
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const todayAnalysis = (_nbaAnalysesCache || []).find(a => a.date === todayDate);
+  const todayPicks = todayAnalysis ? (todayAnalysis.results || []) : [];
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1.5rem;">';
+  today.games.forEach(g => {
+    const stakeColors = { 'PLAYOFF': '#22c55e', 'PLAY-IN': '#f59e0b', 'LOW STAKE': '#666' };
+    const stakeColor = stakeColors[g.stake_tag] || '#666';
+    const injuries = (g.injuries || []).filter(i => i.status === 'out');
+    const injuryHtml = injuries.length > 0
+      ? injuries.map(i => `<span style="color:#ef4444;font-size:0.75rem;">${i.team} — ${i.name} (OUT)</span>`).join('<br>')
+      : '<span style="color:#666;font-size:0.75rem;">Sem lesões confirmadas</span>';
+    const pick = todayPicks.find(p => p.game === g.game_label);
+    const pickBadge = pick
+      ? `<div style="margin-top:0.5rem;padding:4px 8px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;border-radius:6px;font-size:0.75rem;color:#f59e0b;">⚡ ${pick.player} — ${pick.rating}</div>`
+      : '';
+    html += `<div class="dash-chart-card nba-game-card" style="padding:1rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+        <span style="font-weight:700;color:#fff;">${g.game_label}</span>
+        <span style="font-size:0.7rem;padding:2px 8px;border-radius:4px;background:${stakeColor};color:#fff;">${g.stake_tag}</span>
+      </div>
+      <div style="font-size:0.8rem;">${injuryHtml}</div>
+      ${pickBadge}
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderDvPSnapshot(dvp) {
+  let html = '<h3 class="section-title" style="margin-top:1.5rem;font-size:1rem;">DvP RANKINGS — PIORES DEFESAS</h3>';
+  if (!dvp) {
+    return html + '<div class="muted" style="text-align:center;padding:1rem;">Dados DvP indisponíveis no momento</div>';
+  }
+  html += '<div class="dash-chart-card"><div style="overflow-x:auto;">';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+  html += '<thead><tr style="color:#888;"><th>Pos</th><th>#1</th><th>#2</th><th>#3</th><th>#4</th><th>#5</th></tr></thead><tbody>';
+  ['PG', 'SG', 'SF', 'PF', 'C'].forEach(pos => {
+    const teams = dvp[pos] || [];
+    html += `<tr style="color:#ccc;"><td style="padding:6px;font-weight:600;color:#f59e0b;">${pos}</td>`;
+    for (let i = 0; i < 5; i++) {
+      const t = teams[i];
+      html += `<td style="padding:6px;">${t ? `${t.team} (${t.pts.toFixed(1)})` : '—'}</td>`;
+    }
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
 }
 
 function renderCorrelation() {
