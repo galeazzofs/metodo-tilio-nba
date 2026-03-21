@@ -281,6 +281,22 @@ function renderPainel() {
         <div id="streaksTimeline" style="padding:1rem 0;"></div>
       </div>
 
+      <div class="dash-charts-row" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+        <div class="dash-chart-card">
+          <div class="dch-title">Distribuição de Odds</div>
+          <canvas id="chartOddsHist" height="250"></canvas>
+        </div>
+        <div class="dash-chart-card">
+          <div class="dch-title">Odds vs Resultado</div>
+          <canvas id="chartOddsScatter" height="250"></canvas>
+        </div>
+      </div>
+
+      <div class="dash-chart-card">
+        <div class="dch-title">Evolução do ROI</div>
+        <canvas id="chartROI" height="200"></canvas>
+      </div>
+
     </div>`;
 
   [_chartLucro, _chartResultado, _chartTipo].forEach(c => c?.destroy());
@@ -411,6 +427,9 @@ function drawCharts(bets, stats) {
   drawDayOfWeekChart(bets);
   drawOddsRangeChart(bets);
   drawStreaksTimeline(bets);
+  drawOddsHistogram(bets);
+  drawOddsScatter(bets);
+  drawROIEvolution(bets);
 }
 
 function drawLineChart(bets) {
@@ -632,6 +651,114 @@ function drawStreaksTimeline(bets) {
   }
   html += '</div>';
   container.innerHTML = html;
+}
+
+function drawOddsHistogram(bets) {
+  const ranges = [
+    { label: '1.00-1.50', min: 1.00, max: 1.50 },
+    { label: '1.51-1.80', min: 1.51, max: 1.80 },
+    { label: '1.81-2.20', min: 1.81, max: 2.20 },
+    { label: '2.21-3.00', min: 2.21, max: 3.00 },
+    { label: '3.01+', min: 3.01, max: Infinity },
+  ];
+  const counts = ranges.map(() => 0);
+  bets.forEach(b => {
+    if (!b.odds) return;
+    const idx = ranges.findIndex(r => b.odds >= r.min && b.odds <= r.max);
+    if (idx >= 0) counts[idx]++;
+  });
+  const ctx = document.getElementById('chartOddsHist');
+  if (!ctx) return;
+  if (window._chartOddsHist) window._chartOddsHist.destroy();
+  window._chartOddsHist = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: ranges.map(r => r.label), datasets: [{ data: counts, backgroundColor: '#f59e0b', borderRadius: 6 }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { title: { display: true, text: 'Qtd apostas', color: '#888' }, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#888' }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function drawOddsScatter(bets) {
+  const won = [], lost = [];
+  bets.forEach(b => {
+    if (!b.odds || b.resultado === 'pendente' || b.resultado === 'void') return;
+    const pt = { x: b.odds, y: b.lucro_prejuizo || 0 };
+    (b.resultado === 'ganhou' ? won : lost).push(pt);
+  });
+  const ctx = document.getElementById('chartOddsScatter');
+  if (!ctx) return;
+  if (window._chartOddsScatter) window._chartOddsScatter.destroy();
+  window._chartOddsScatter = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'Ganhou', data: won, backgroundColor: '#22c55e', pointRadius: 5 },
+        { label: 'Perdeu', data: lost, backgroundColor: '#ef4444', pointRadius: 5 },
+      ],
+    },
+    plugins: [{
+      afterDraw: (chart) => {
+        const y = chart.scales.y.getPixelForValue(0);
+        const c = chart.ctx;
+        c.save(); c.setLineDash([5, 5]); c.strokeStyle = 'rgba(255,255,255,0.3)';
+        c.beginPath(); c.moveTo(chart.chartArea.left, y); c.lineTo(chart.chartArea.right, y); c.stroke(); c.restore();
+      },
+    }],
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#ccc' } } },
+      scales: {
+        x: { title: { display: true, text: 'Odds', color: '#888' }, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { title: { display: true, text: 'P&L (R$)', color: '#888' }, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      },
+    },
+  });
+}
+
+function drawROIEvolution(bets) {
+  const resolved = bets.filter(b => b.resultado !== 'pendente' && b.resultado !== 'void').sort((a, b) => a.data.localeCompare(b.data));
+  if (resolved.length < 2) return;
+  const stakes = resolved.map(b => b.stake || 0).sort((a, b) => a - b);
+  const medianStake = stakes[Math.floor(stakes.length / 2)];
+  let cumStake = 0, cumPL = 0, flatStake = 0, flatPL = 0;
+  const labels = [], roiActual = [], roiFlat = [];
+  resolved.forEach(b => {
+    cumStake += b.stake || 0;
+    cumPL += b.lucro_prejuizo || 0;
+    roiActual.push(cumStake > 0 ? (cumPL / cumStake) * 100 : 0);
+    flatStake += medianStake;
+    const flatResult = b.resultado === 'ganhou' ? medianStake * ((b.odds || 1) - 1) : -medianStake;
+    flatPL += flatResult;
+    roiFlat.push(flatStake > 0 ? (flatPL / flatStake) * 100 : 0);
+    labels.push(b.data);
+  });
+  const ctx = document.getElementById('chartROI');
+  if (!ctx) return;
+  if (window._chartROI) window._chartROI.destroy();
+  window._chartROI = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'ROI Real', data: roiActual, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
+        { label: 'ROI Flat Betting', data: roiFlat, borderColor: 'rgba(255,255,255,0.3)', borderDash: [5, 5], fill: false, tension: 0.3, pointRadius: 0 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#ccc' } } },
+      scales: {
+        y: { title: { display: true, text: 'ROI (%)', color: '#888' }, ticks: { color: '#888', callback: v => v.toFixed(0) + '%' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#888', maxTicksLimit: 10 }, grid: { display: false } },
+      },
+    },
+  });
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────
