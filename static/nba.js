@@ -380,5 +380,129 @@ function renderDvPSnapshot(dvp) {
 
 function renderCorrelation() {
   const el = document.getElementById('nba-correlation');
-  if (el) el.innerHTML = '<p class="muted" style="padding:1rem 0;">Correlação — em breve</p>';
+  if (!el) return;
+
+  const bets = (_nbaBetsCache || []).filter(b => b.resultado !== 'pendente' && b.resultado !== 'void');
+  const analyses = _nbaAnalysesCache || [];
+
+  const followed = [], notFollowed = [];
+  bets.forEach(b => {
+    const match = matchBetToAnalysis(b, analyses);
+    if (match) { followed.push({ ...b, engineScore: match.score }); }
+    else { notFollowed.push(b); }
+  });
+
+  if (followed.length === 0) {
+    el.innerHTML = `
+      <h2 class="section-title" style="margin-top:2rem;">CORRELAÇÃO ENGINE × APOSTAS</h2>
+      <div class="muted" style="text-align:center;padding:2rem;">
+        Nenhuma aposta correspondente a picks do engine encontrada
+      </div>`;
+    return;
+  }
+
+  const calcROI = (arr) => {
+    const staked = arr.reduce((s, b) => s + (b.stake || 0), 0);
+    const pl = arr.reduce((s, b) => s + (b.lucro_prejuizo || 0), 0);
+    return staked > 0 ? ((pl / staked) * 100).toFixed(1) : '—';
+  };
+
+  const roiFollowed = calcROI(followed);
+  const roiNotFollowed = calcROI(notFollowed);
+  const delta = roiFollowed !== '—' && roiNotFollowed !== '—'
+    ? (parseFloat(roiFollowed) - parseFloat(roiNotFollowed)).toFixed(1) : '—';
+  const deltaColor = delta !== '—' && parseFloat(delta) >= 0 ? '#22c55e' : '#ef4444';
+
+  el.innerHTML = `
+    <h2 class="section-title" style="margin-top:2rem;">CORRELAÇÃO ENGINE × APOSTAS</h2>
+    <div class="dash-kpi-row">
+      <div class="dash-kpi">
+        <div class="dkpi-label">ROI Seguindo Engine</div>
+        <div class="dkpi-main"><span class="dkpi-val">${roiFollowed}${roiFollowed !== '—' ? '%' : ''}</span></div>
+        <div class="muted" style="font-size:0.75rem;">${followed.length} apostas</div>
+      </div>
+      <div class="dash-kpi">
+        <div class="dkpi-label">ROI Não Seguindo</div>
+        <div class="dkpi-main"><span class="dkpi-val">${roiNotFollowed}${roiNotFollowed !== '—' ? '%' : ''}</span></div>
+        <div class="muted" style="font-size:0.75rem;">${notFollowed.length} apostas</div>
+      </div>
+      <div class="dash-kpi">
+        <div class="dkpi-label">Diferença</div>
+        <div class="dkpi-main"><span class="dkpi-val" style="color:${deltaColor};">${delta !== '—' ? (parseFloat(delta) >= 0 ? '+' : '') + delta + '%' : '—'}</span></div>
+      </div>
+    </div>
+    <div class="dash-chart-card">
+      <div class="dch-title">Lucro Acumulado: Engine vs Sem Engine</div>
+      <canvas id="chartCorrelationPL" height="250"></canvas>
+    </div>
+    <div class="dash-chart-card">
+      <div class="dch-title">Win Rate por Score do Engine</div>
+      <canvas id="chartCorrelationScore" height="250"></canvas>
+    </div>
+  `;
+
+  drawCorrelationPL(followed, notFollowed);
+  drawCorrelationScore(followed);
+}
+
+function drawCorrelationPL(followed, notFollowed) {
+  const sortByDate = (arr) => [...arr].sort((a, b) => a.data.localeCompare(b.data));
+  const fSorted = sortByDate(followed);
+  const nSorted = sortByDate(notFollowed);
+  const allDates = [...new Set([...fSorted, ...nSorted].map(b => b.data))].sort();
+  let cumF = 0, cumN = 0;
+  const fData = [], nData = [];
+  allDates.forEach(date => {
+    fSorted.filter(b => b.data === date).forEach(b => cumF += b.lucro_prejuizo || 0);
+    nSorted.filter(b => b.data === date).forEach(b => cumN += b.lucro_prejuizo || 0);
+    fData.push(cumF); nData.push(cumN);
+  });
+  const ctx = document.getElementById('chartCorrelationPL');
+  if (!ctx) return;
+  if (window._chartCorrPL) window._chartCorrPL.destroy();
+  window._chartCorrPL = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: allDates,
+      datasets: [
+        { label: 'Seguindo Engine', data: fData, borderColor: '#f59e0b', tension: 0.3, pointRadius: 0, fill: false },
+        { label: 'Sem Engine', data: nData, borderColor: 'rgba(255,255,255,0.3)', tension: 0.3, pointRadius: 0, fill: false },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#ccc' } } },
+      scales: {
+        y: { ticks: { color: '#888', callback: v => 'R$ ' + v.toFixed(0) }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#888', maxTicksLimit: 10 }, grid: { display: false } },
+      },
+    },
+  });
+}
+
+function drawCorrelationScore(followed) {
+  const scores = [4, 5, 6];
+  const data = scores.map(s => {
+    const group = followed.filter(b => b.engineScore === s);
+    const won = group.filter(b => b.resultado === 'ganhou');
+    return { score: s, total: group.length, winRate: group.length > 0 ? (won.length / group.length) * 100 : 0 };
+  });
+  const ctx = document.getElementById('chartCorrelationScore');
+  if (!ctx) return;
+  if (window._chartCorrScore) window._chartCorrScore.destroy();
+  window._chartCorrScore = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: scores.map(s => 'Score ' + s),
+      datasets: [{ data: data.map(d => d.winRate), backgroundColor: ['#06b6d4', '#f59e0b', '#22c55e'], borderRadius: 6 }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => { const d = data[ctx.dataIndex]; return [`Win rate: ${d.winRate.toFixed(1)}%`, `${d.total} apostas`]; } } } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { color: '#888', callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        x: { ticks: { color: '#888' }, grid: { display: false } },
+      },
+    },
+  });
 }
