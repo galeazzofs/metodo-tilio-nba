@@ -51,9 +51,10 @@ Three new charts below the KPI cards.
 
 **3. Hot/Cold Streaks (timeline visual)**
 - Horizontal timeline with colored markers
-- Each bet: green (win), red (loss), gray (void)
+- Each bet: green (win), red (loss), gray (void/push)
+- Pending bets (`resultado === "pendente"`) are excluded from the timeline
 - Consecutive streaks highlighted with colored background
-- Shows last 50 bets to keep it clean
+- Shows last 50 resolved bets to keep it clean
 
 **Layout:** Two bar charts side by side on desktop, timeline full width below. All stacked vertically on mobile.
 
@@ -63,7 +64,7 @@ Three final charts to close out the betting dashboard.
 
 **1. Histograma de Odds (bar chart)**
 - Frequency distribution of odds across all bets
-- Bins of 0.10 (e.g., 1.50-1.60, 1.60-1.70...)
+- Uses the same ranges as the Faixa de Odds chart for consistency: 1.00-1.50, 1.51-1.80, 1.81-2.20, 2.21-3.00, 3.01+
 - Reveals betting selection bias
 
 **2. Scatter Plot: Odds vs Resultado (scatter)**
@@ -77,7 +78,7 @@ Three final charts to close out the betting dashboard.
 - X axis: dates
 - Y axis: cumulative ROI (%)
 - Main line: user's actual ROI
-- Dashed reference line: ROI with flat betting (constant stake)
+- Dashed reference line: ROI with flat betting using the user's median stake as the constant value
 - Shows whether stake management adds value vs always betting the same
 
 **Layout:** Histogram and scatter side by side, ROI evolution full width below.
@@ -86,18 +87,31 @@ Three final charts to close out the betting dashboard.
 
 ## Page 2: Nova Aba NBA
 
-New 4th tab in the navigation menu: Análise | Apostas | Painel | **NBA**
+New 4th tab in the navigation menu: ANÁLISE | **NBA** | APOSTAS | PAINEL
+
+NBA tab placed adjacent to ANÁLISE since both are conceptually related (engine analysis).
 
 ### Section 4: Engine Scorecard
+
+#### Outcome Tracking
+
+Each analysis result in Firestore needs an `outcome` field to track whether the pick was correct. This requires:
+
+- **New field:** `outcome: "hit" | "miss" | null` on each result entry in `analyses/{date}`
+- **Definition of "hit":** The recommended player exceeded the betting line (points prop) that was fetched from The Odds API at analysis time. The line value is already stored in the analysis result.
+- **Backend job:** A new daily job runs the morning after game day, fetches actual player stats from the NBA Stats API, compares against the stored line, and writes `outcome` back to Firestore.
+- **New endpoint:** `POST /api/analyses/{date}/resolve` — manually trigger outcome resolution for a specific date (useful for backfilling).
+
+Until outcome data exists, the Engine Scorecard section shows an empty state: "Dados de accuracy serão exibidos após os primeiros resultados serem processados."
 
 **KPI Cards (row of 4):**
 
 | Card | Description | Calculation |
 |------|-------------|-------------|
-| Accuracy Geral | % of picks that hit | `correct picks / total picks with result` |
-| Accuracy BEST OF NIGHT | % accuracy for top tier (score >= 6) | Filtered by score >= 6 |
-| Accuracy VERY FAVORABLE | % accuracy for secondary tier (score 4-5) | Filtered by score 4-5 |
-| Total de Picks | Total recommendations made | Count of all analyses with result |
+| Accuracy Geral | % of picks that hit | `picks with outcome="hit" / total picks with non-null outcome` |
+| Accuracy BEST OF NIGHT | % accuracy for top tier (score >= 6) | Filtered by score >= 6, same outcome logic |
+| Accuracy VERY FAVORABLE | % accuracy for secondary tier (score 4-5) | Filtered by score 4-5, same outcome logic |
+| Total de Picks | Total recommendations made | Count of all analyses with non-null outcome |
 
 **Trend de Accuracy (line chart)**
 - X axis: time
@@ -106,19 +120,20 @@ New 4th tab in the navigation menu: Análise | Apostas | Painel | **NBA**
 - Filters: last 30 / 60 / 90 days / all-time
 - Tracks if the engine is improving or declining over time
 
-**Accuracy por Signal (bar chart)**
-- Bar for each engine signal: DvP Matchup, Recent Form, Zone Match
-- Shows which signal is most predictive
-- Helps understand engine strengths and weaknesses
+**Accuracy por Score (bar chart)**
+- Bar for each score value: 4, 5, 6
+- Shows hit rate per score level
+- Validates whether higher engine scores correlate with better outcomes
+- (Note: DvP Matchup and Zone Match are hard gates in the engine — all picks have them. Only score level varies meaningfully between picks.)
 
-**Layout:** 4 cards top, trend chart full width, signal chart below.
+**Layout:** 4 cards top, trend chart full width, score accuracy chart below.
 
 ### Section 5: Dados ao Vivo
 
 **1. Standings Resumidos (two compact tables)**
 - East and West tables side by side
 - Columns: Position, Team, W-L, %, GB
-- Visual divider between playoff (1-6), play-in (7-10), eliminated (11-15)
+- Visual divider between playoff (1-6), play-in (7-10), outside play-in (11-15)
 - Amber highlight on teams playing today
 
 **2. Jogos do Dia (game cards)**
@@ -147,7 +162,12 @@ New 4th tab in the navigation menu: Análise | Apostas | Painel | **NBA**
 | ROI Não Seguindo | ROI of bets without engine picks |
 | Diferença | Delta between the two — shows engine's added value |
 
-Match logic: cross-reference bet `data` + `partida` with analysis from the same date. If the bet was on a player the engine recommended, it counts as "followed."
+**Match logic:**
+1. Match bet to analysis by date: bet `data` field → `analyses/{date}` document
+2. Match bet to game: normalize bet `partida` field by extracting team tricodes (e.g., "Lakers vs Celtics" → ["LAL", "BOS"]) and compare against analysis result `game` field (e.g., "BOS @ LAL"). Use a tricode lookup map (full name → tricode).
+3. Match bet to player: check if any word in bet `descricao` matches analysis result `player` name (case-insensitive substring match on last name).
+4. If all 3 match → bet "followed" the engine. If match fails at any step → "not followed."
+5. Ambiguous matches (e.g., multiple engine picks in the same game) are excluded from correlation stats and logged for manual review.
 
 **Lucro Acumulado Comparativo (line chart, 2 lines)**
 - Line 1 (amber): cumulative P&L of bets that followed the engine
@@ -176,19 +196,46 @@ Match logic: cross-reference bet `data` + `partida` with analysis from the same 
 | DvP rankings | FantasyPros | `scrapers/fantasypros.py` |
 | Stake filter | Analysis engine | `analysis/engine.py` → `filter_games_by_stake()` |
 
+## New API Endpoints
+
+The NBA tab requires new backend routes since the scrapers are server-side Python functions with no HTTP endpoints:
+
+| Endpoint | Method | Purpose | Source Function | Caching |
+|----------|--------|---------|-----------------|---------|
+| `GET /api/nba/standings` | GET | Conference standings | `scrapers/nba.py → get_conference_standings()` | 1 hour TTL in-memory |
+| `GET /api/nba/today` | GET | Today's games + stake tags + injuries | `scrapers/nba.py → get_todays_games()` + `engine.py → filter_games_by_stake()` + `scrapers/rotowire.py → get_projected_lineups()` | 30 min TTL in-memory |
+| `GET /api/nba/dvp` | GET | DvP rankings snapshot | `scrapers/fantasypros.py` | 1 hour TTL in-memory |
+| `POST /api/analyses/{date}/resolve` | POST | Resolve pick outcomes for a date | New function: fetch actual stats from NBA API, compare vs stored lines | No cache |
+
+Caching is in-memory (simple dict with TTL) to avoid hammering external APIs on every page load. Cache is invalidated when a new analysis run completes.
+
 ## Technical Notes
 
 - All charts use Chart.js (already in project)
-- All calculations are client-side from existing API data (no new backend endpoints needed for betting metrics)
-- NBA tab will need a new API endpoint or use existing `/api/analyses` + scraper endpoints
+- All Painel (betting) calculations are client-side from existing `/api/bets` data (no new backend endpoints needed)
+- NBA tab uses the new API endpoints above
 - Follow existing "Midnight Court" design system (amber primary, cyan secondary, green/red for positive/negative)
 - All new sections respect existing time period filters (week/month/year/all) where applicable
 - Mobile responsive: cards 2-per-row, charts stack vertically
 
+## Empty States
+
+Each section must handle empty/missing data gracefully:
+
+| Section | Condition | Message |
+|---------|-----------|---------|
+| KPI Cards (Painel) | No resolved bets | "Registre suas primeiras apostas para ver as estatísticas" |
+| Pattern Analysis | Fewer than 7 resolved bets | "Aposte mais para ver padrões por dia da semana" |
+| Engine Scorecard | No outcome data resolved yet | "Dados de accuracy serão exibidos após os primeiros resultados serem processados" |
+| Jogos do Dia | No games scheduled | "Sem jogos hoje" |
+| DvP Rankings | Scraper fails or no data | "Dados DvP indisponíveis no momento" |
+| Correlation | No bets match any engine picks | "Nenhuma aposta correspondente a picks do engine encontrada" |
+| Standings | Scraper fails | "Standings indisponíveis no momento" |
+
 ## Navigation Change
 
-Add 4th tab to the nav menu:
-- Current: `ANALISE | APOSTAS | PAINEL`
-- New: `ANALISE | APOSTAS | PAINEL | NBA`
+Reorder nav to group related tabs:
+- Current: `ANÁLISE | APOSTAS | PAINEL`
+- New: `ANÁLISE | NBA | APOSTAS | PAINEL`
 
-New tab uses the same nav component and styling as existing tabs.
+NBA tab placed next to ANÁLISE since both relate to engine/analysis data. New tab uses the same nav component and styling as existing tabs.
