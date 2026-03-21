@@ -54,6 +54,7 @@ class BetUpdate(BaseModel):
     stake: Optional[float] = None
     data: Optional[str] = None
     resultado: Optional[str] = None
+    lucro_prejuizo: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------
@@ -185,9 +186,11 @@ def update_bet(bet_id: str, update: BetUpdate, uid: str = Depends(require_auth))
 
     changes = {k: v for k, v in update.model_dump().items() if v is not None}
     merged = {**current, **changes}
-    merged["lucro_prejuizo"] = _compute_lucro(
-        merged["resultado"], merged["odds"], merged["stake"]
-    )
+    # Se o user enviou lucro_prejuizo manual, usa. Senão, calcula automaticamente.
+    if update.lucro_prejuizo is None:
+        merged["lucro_prejuizo"] = _compute_lucro(
+            merged["resultado"], merged["odds"], merged["stake"]
+        )
     ref.set(merged)
     return merged
 

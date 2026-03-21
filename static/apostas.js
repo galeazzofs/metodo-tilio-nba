@@ -178,12 +178,20 @@ function setupApostasShell() {
         <input class="fp-input" type="date" id="formData" />
 
         <label class="fp-label">Resultado</label>
-        <select class="fp-input" id="formResultado">
+        <select class="fp-input" id="formResultado" onchange="toggleLucroField()">
           <option value="pendente">Pendente</option>
           <option value="ganhou">Ganhou</option>
           <option value="perdeu">Perdeu</option>
           <option value="void">Void</option>
         </select>
+
+        <div id="lucroFieldWrap" style="display:none;">
+          <label class="fp-label">Lucro/Prejuízo (R$)</label>
+          <input class="fp-input" type="number" step="0.01" id="formLucro" placeholder="Vazio = cálculo automático" />
+          <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">
+            Deixe vazio para calcular com base em odds × stake. Preencha para múltiplas ou cashout.
+          </div>
+        </div>
       </div>
       <div class="fp-footer">
         <button class="btn-danger" id="btnExcluir" style="display:none" onclick="excluirAposta()">
@@ -282,10 +290,12 @@ function abrirFormulario() {
   if (btnSv) btnSv.textContent = 'Salvar Aposta';
 
   // Reset fields
-  ['formPartida', 'formDescricao', 'formOdds', 'formStake'].forEach(id => {
+  ['formPartida', 'formDescricao', 'formOdds', 'formStake', 'formLucro'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const lucroWrap = document.getElementById('lucroFieldWrap');
+  if (lucroWrap) lucroWrap.style.display = 'none';
   const tipo = document.getElementById('formTipo');
   if (tipo) tipo.value = 'Vencedor';
   const result = document.getElementById('formResultado');
@@ -317,9 +327,17 @@ function editarAposta(betId) {
   document.getElementById('formStake').value      = bet.stake ?? '';
   document.getElementById('formData').value       = bet.data  || '';
   document.getElementById('formResultado').value  = bet.resultado || 'pendente';
+  document.getElementById('formLucro').value      = bet.lucro_prejuizo ?? '';
+  toggleLucroField();
 
   document.getElementById('formPanel').style.display = 'flex';
   document.getElementById('formOverlay').style.display = 'block';
+}
+
+function toggleLucroField() {
+  const resultado = document.getElementById('formResultado').value;
+  const wrap = document.getElementById('lucroFieldWrap');
+  if (wrap) wrap.style.display = resultado !== 'pendente' ? 'block' : 'none';
 }
 
 function fecharFormulario() {
@@ -330,6 +348,7 @@ function fecharFormulario() {
 
 // ── Save (create or update) ───────────────────────────────────────────────
 async function salvarAposta() {
+  const lucroVal = document.getElementById('formLucro').value.trim();
   const body = {
     partida:     document.getElementById('formPartida').value,
     descricao:   document.getElementById('formDescricao').value,
@@ -339,6 +358,7 @@ async function salvarAposta() {
     data:        document.getElementById('formData').value,
     resultado:   document.getElementById('formResultado').value,
   };
+  if (lucroVal !== '') body.lucro_prejuizo = parseFloat(lucroVal);
 
   const url    = _editingBetId ? `/api/bets/${_editingBetId}` : '/api/bets';
   const method = _editingBetId ? 'PUT' : 'POST';
