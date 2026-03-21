@@ -300,11 +300,33 @@ function calcStats(bets) {
   const avgOdds = resolved.length > 0
     ? resolved.reduce((s, b) => s + (b.odds ?? 0), 0) / resolved.length : null;
 
+  // Max Drawdown
+  let peak = 0, maxDD = 0, cumPL = 0;
+  resolved.forEach(b => {
+    cumPL += b.lucro_prejuizo || 0;
+    if (cumPL > peak) peak = cumPL;
+    const dd = peak - cumPL;
+    if (dd > maxDD) maxDD = dd;
+  });
+
+  // Streaks
+  let curWin = 0, curLoss = 0, bestWin = 0, bestLoss = 0;
+  resolved.forEach(b => {
+    if (b.resultado === 'ganhou') { curWin++; curLoss = 0; if (curWin > bestWin) bestWin = curWin; }
+    else if (b.resultado === 'perdeu') { curLoss++; curWin = 0; if (curLoss > bestLoss) bestLoss = curLoss; }
+  });
+
+  // Profit Factor
+  const grossWin = resolved.reduce((s, b) => s + (b.lucro_prejuizo > 0 ? b.lucro_prejuizo : 0), 0);
+  const grossLoss = resolved.reduce((s, b) => s + (b.lucro_prejuizo < 0 ? Math.abs(b.lucro_prejuizo) : 0), 0);
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : null;
+
   return {
     totalLP: parseFloat(totalLP.toFixed(2)),
     totalStake: parseFloat(totalStake.toFixed(2)),
     wonCount, lostCount, pendingCount,
     winRate, roi, avgOdds,
+    maxDrawdown: maxDD, longestWin: bestWin, longestLoss: bestLoss, profitFactor,
     total: bets.length,
   };
 }
