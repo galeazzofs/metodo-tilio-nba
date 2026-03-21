@@ -1545,9 +1545,6 @@
       .dash-charts-row {
         grid-template-columns: 1fr !important;
       }
-      .nba-standings-table table {
-        font-size: 0.75rem;
-      }
     }
 
   </style>
@@ -1624,11 +1621,7 @@
         <span class="nav-dot"></span>
         <span>Análise</span>
       </div>
-      <div class="nav-item" data-tab="nba" onclick="switchTab('nba')">
-        <span class="nav-dot"></span>
-        <span>NBA</span>
-      </div>
-      <div class="nav-item" data-tab="apostas" onclick="switchTab('apostas')">
+<div class="nav-item" data-tab="apostas" onclick="switchTab('apostas')">
         <span class="nav-dot"></span>
         <span>Apostas</span>
       </div>
@@ -1672,10 +1665,7 @@
       </div>
     </div>
 
-    <!-- Aba NBA (preenchida pelo JS) -->
-    <div id="tab-nba" class="tab-panel"></div>
-
-    <!-- Aba Apostas (preenchida pelo JS) -->
+<!-- Aba Apostas (preenchida pelo JS) -->
     <div id="tab-apostas" class="tab-panel"></div>
 
     <!-- Aba Painel (preenchida pelo JS) -->
@@ -1690,13 +1680,7 @@
         </svg>
         <span>Análise</span>
       </button>
-      <button class="bn-item" data-tab="nba" onclick="switchTab(this.dataset.tab)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><path d="M4.93 4.93c4.08 2.38 8.58 7.88 14.14 14.14"/><path d="M19.07 4.93c-4.08 2.38-8.58 7.88-14.14 14.14"/>
-        </svg>
-        <span>NBA</span>
-      </button>
-      <button class="bn-item" data-tab="apostas" onclick="switchTab(this.dataset.tab)">
+<button class="bn-item" data-tab="apostas" onclick="switchTab(this.dataset.tab)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
           <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
@@ -1727,7 +1711,6 @@
 <script src="/static/analise.js"></script>
 <script src="/static/apostas.js"></script>
 <script src="/static/painel.js"></script>
-<script src="/static/nba.js"></script>
 
 <script>
   let _mode = 'entrar';
@@ -1806,8 +1789,7 @@
 
   function animateTab(tabId) {
     const SELECTORS = {
-      nba:     '.dash-kpi, .dash-chart-card, .nba-game-card, .nba-standings-table',
-      painel:  '.dash-kpi, .dash-chart-card, .chart-box',
+painel:  '.dash-kpi, .dash-chart-card, .chart-box',
       apostas: '.bet-card',
       analise: '.card',
     };
@@ -1835,8 +1817,7 @@
       b.classList.toggle('active', b.dataset.tab === name)
     );
     history.replaceState(null, '', '#' + name);
-    if (name === 'nba')     loadNBA();
-    if (name === 'apostas') loadApostas();
+if (name === 'apostas') loadApostas();
     if (name === 'painel')  loadPainel();
     animateTab(name);
   }
@@ -1850,7 +1831,7 @@
       document.getElementById('userAvatar').textContent = email.charAt(0).toUpperCase() || '?';
       initAnalise();
       const hash = location.hash.replace('#', '');
-      switchTab(['analise','nba','apostas','painel'].includes(hash) ? hash : 'analise');
+      switchTab(['analise','apostas','painel'].includes(hash) ? hash : 'analise');
     } else {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appShell').style.display   = 'none';
