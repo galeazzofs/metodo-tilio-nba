@@ -194,6 +194,43 @@ function renderPainel() {
 
       </div>
 
+      <!-- ── Row 2: Advanced KPIs ── -->
+      ${s.wonCount + s.lostCount > 0 ? `
+      <div class="dash-kpi-row">
+        <div class="dash-kpi">
+          <div class="dkpi-label">Max Drawdown</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val dkpi-neg">R$ ${s.maxDrawdown.toFixed(2)}</span>
+          </div>
+          <div class="dkpi-sub">Maior queda pico-a-vale</div>
+        </div>
+
+        <div class="dash-kpi">
+          <div class="dkpi-label">Maior Sequência W</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val dkpi-pos">${s.longestWin} apostas</span>
+          </div>
+          <div class="dkpi-sub">Vitórias consecutivas</div>
+        </div>
+
+        <div class="dash-kpi">
+          <div class="dkpi-label">Maior Sequência L</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val dkpi-neg">${s.longestLoss} apostas</span>
+          </div>
+          <div class="dkpi-sub">Derrotas consecutivas</div>
+        </div>
+
+        <div class="dash-kpi">
+          <div class="dkpi-label">Profit Factor</div>
+          <div class="dkpi-main">
+            <span class="dkpi-val ${s.profitFactor !== null && s.profitFactor >= 1 ? 'dkpi-pos' : 'dkpi-neg'}">${s.profitFactor !== null ? s.profitFactor.toFixed(2) : '—'}</span>
+          </div>
+          <div class="dkpi-sub">Ganhos brutos / Perdas brutas</div>
+        </div>
+      </div>
+      ` : `<div class="muted" style="text-align:center;padding:2rem;">Registre suas primeiras apostas para ver as estatísticas</div>`}
+
       <!-- ── P&L Line Chart (full width) ── -->
       <div class="dash-chart-card">
         <div class="dash-chart-hdr">
