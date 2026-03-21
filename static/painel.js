@@ -261,6 +261,26 @@ function renderPainel() {
         </div>
 
       </div>
+
+      ${s.wonCount + s.lostCount >= 7 ? `
+      <!-- ── Pattern Analysis ── -->
+      <div class="dash-charts-row" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+        <div class="dash-chart-card">
+          <div class="dch-title">Performance por Dia da Semana</div>
+          <canvas id="chartDayOfWeek" height="250"></canvas>
+        </div>
+        <div class="dash-chart-card">
+          <div class="dch-title">Performance por Faixa de Odds</div>
+          <canvas id="chartOddsRange" height="250"></canvas>
+        </div>
+      </div>
+      ` : `<div class="muted" style="text-align:center;padding:2rem;">Aposte mais para ver padrões por dia da semana</div>`}
+
+      <div class="dash-chart-card">
+        <div class="dch-title">Hot/Cold Streaks (últimas 50 apostas)</div>
+        <div id="streaksTimeline" style="padding:1rem 0;"></div>
+      </div>
+
     </div>`;
 
   [_chartLucro, _chartResultado, _chartTipo].forEach(c => c?.destroy());
@@ -388,6 +408,9 @@ const _TT    = {
 function drawCharts(bets, stats) {
   drawLineChart(bets);
   drawBetsBarChart(bets, stats);
+  drawDayOfWeekChart(bets);
+  drawOddsRangeChart(bets);
+  drawStreaksTimeline(bets);
 }
 
 function drawLineChart(bets) {
@@ -524,6 +547,91 @@ function drawBetsBarChart(bets, stats) {
       },
     },
   });
+}
+
+function drawDayOfWeekChart(bets) {
+  const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const dayData = days.map(() => ({ pl: 0, staked: 0, count: 0, won: 0 }));
+  bets.forEach(b => {
+    if (b.resultado === 'pendente' || b.resultado === 'void') return;
+    const d = new Date(b.data + 'T12:00:00').getDay();
+    dayData[d].pl += b.lucro_prejuizo || 0;
+    dayData[d].staked += b.stake || 0;
+    dayData[d].count++;
+    if (b.resultado === 'ganhou') dayData[d].won++;
+  });
+  const ctx = document.getElementById('chartDayOfWeek');
+  if (!ctx) return;
+  if (window._chartDayOfWeek) window._chartDayOfWeek.destroy();
+  window._chartDayOfWeek = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: days, datasets: [{ data: dayData.map(d => d.pl), backgroundColor: dayData.map(d => d.pl >= 0 ? '#22c55e' : '#ef4444'), borderRadius: 6 }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => { const i = ctx.dataIndex; const d = dayData[i]; const wr = d.count > 0 ? ((d.won/d.count)*100).toFixed(0) : '0'; return [`P&L: R$ ${d.pl.toFixed(2)}`, `Apostado: R$ ${d.staked.toFixed(2)}`, `${d.count} apostas — ${wr}% win rate`]; } } } },
+      scales: { y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#888' }, grid: { display: false } } },
+    },
+  });
+}
+
+function drawOddsRangeChart(bets) {
+  const ranges = [
+    { label: '1.00-1.50', min: 1.00, max: 1.50 },
+    { label: '1.51-1.80', min: 1.51, max: 1.80 },
+    { label: '1.81-2.20', min: 1.81, max: 2.20 },
+    { label: '2.21-3.00', min: 2.21, max: 3.00 },
+    { label: '3.01+', min: 3.01, max: Infinity },
+  ];
+  const rangeData = ranges.map(() => ({ pl: 0, count: 0, won: 0 }));
+  bets.forEach(b => {
+    if (b.resultado === 'pendente' || b.resultado === 'void' || !b.odds) return;
+    const idx = ranges.findIndex(r => b.odds >= r.min && b.odds <= r.max);
+    if (idx < 0) return;
+    rangeData[idx].pl += b.lucro_prejuizo || 0;
+    rangeData[idx].count++;
+    if (b.resultado === 'ganhou') rangeData[idx].won++;
+  });
+  const ctx = document.getElementById('chartOddsRange');
+  if (!ctx) return;
+  if (window._chartOddsRange) window._chartOddsRange.destroy();
+  window._chartOddsRange = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: ranges.map(r => r.label), datasets: [{ label: 'P&L', data: rangeData.map(d => d.pl), backgroundColor: rangeData.map(d => d.pl >= 0 ? '#22c55e' : '#ef4444'), borderRadius: 6 }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => { const i = ctx.dataIndex; const d = rangeData[i]; const wr = d.count > 0 ? ((d.won/d.count)*100).toFixed(0) : '0'; return [`P&L: R$ ${d.pl.toFixed(2)}`, `${d.count} apostas — ${wr}% win rate`]; } } } },
+      scales: { y: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { ticks: { color: '#888' }, grid: { display: false } } },
+    },
+  });
+}
+
+function drawStreaksTimeline(bets) {
+  const resolved = bets
+    .filter(b => b.resultado === 'ganhou' || b.resultado === 'perdeu' || b.resultado === 'void')
+    .sort((a, b) => a.data.localeCompare(b.data) || (a.criado_em || '').localeCompare(b.criado_em || ''))
+    .slice(-50);
+  if (resolved.length === 0) return;
+  const container = document.getElementById('streaksTimeline');
+  if (!container) return;
+  const items = resolved.map(b => {
+    const color = b.resultado === 'ganhou' ? '#22c55e' : b.resultado === 'perdeu' ? '#ef4444' : '#666';
+    return { color, resultado: b.resultado, data: b.data, desc: b.descricao || b.partida || '' };
+  });
+  let html = '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">';
+  let streakStart = 0;
+  for (let i = 0; i <= items.length; i++) {
+    if (i < items.length && items[i].resultado !== 'void' && items[i].resultado === items[streakStart].resultado) continue;
+    const len = i - streakStart;
+    const isStreak = len >= 3 && items[streakStart].resultado !== 'void';
+    for (let j = streakStart; j < i; j++) {
+      const it = items[j];
+      const bg = isStreak ? (it.resultado === 'ganhou' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)') : 'transparent';
+      html += `<div title="${it.data} — ${it.desc}" style="width:12px;height:12px;border-radius:50%;background:${it.color};box-shadow:0 0 4px ${it.color};outline:2px solid ${bg};cursor:pointer;"></div>`;
+    }
+    streakStart = i;
+  }
+  html += '</div>';
+  container.innerHTML = html;
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────
