@@ -3,8 +3,7 @@ from scrapers.nba import (
     get_player_shot_zones,
     get_player_recent_stats,
     get_all_teams_defense_zones,
-    get_player_season_minutes,
-    STARTER_MIN_THRESHOLD,
+    get_player_season_data,
 )
 
 # ---------------------------------------------------------------------------
@@ -317,8 +316,8 @@ def run_analysis(games, lineups, dvp):
     print("  Fetching team defensive zone data...")
     all_defense_zones = get_all_teams_defense_zones()
 
-    print("  Fetching player season minutes (starter filter)...")
-    season_minutes = get_player_season_minutes()
+    print("  Fetching player season data (starter/bench classification)...")
+    season_minutes, starter_ids = get_player_season_data()
 
     # Build tricode → team_id map from today's games
     tricode_to_team_id = {}
@@ -352,7 +351,7 @@ def run_analysis(games, lineups, dvp):
             out_starters = []
             for p in team_data.get("out", []):
                 pid = _find_player_id(p["name"])
-                if pid and season_minutes.get(pid, 0) >= STARTER_MIN_THRESHOLD:
+                if pid and pid in starter_ids:
                     out_starters.append({"name": p["name"], "position": p.get("position", "")})
 
             if not out_starters:
@@ -369,14 +368,14 @@ def run_analysis(games, lineups, dvp):
                     continue
 
                 # --- KEY GATE: bench players only ---
-                # We use season-avg minutes as a starter proxy (LeagueDashPlayerStats
-                # does not expose GS). Players averaging >= 27 min/game this season
-                # are regular starters and must be skipped.
+                # Uses NBA's own starter/bench classification (GS/GP > 50%).
+                # This correctly identifies high-usage bench players (6th man
+                # types averaging 28+ min/g) as bench players.
                 min_avg = season_minutes.get(player_id)
                 if min_avg is None:
                     print(f"  [skip] {player_name} - insufficient season data (<5 games)")
                     continue
-                if min_avg >= STARTER_MIN_THRESHOLD:
+                if player_id in starter_ids:
                     print(f"  [skip] {player_name} - regular starter ({min_avg} min/g this season)")
                     continue
 

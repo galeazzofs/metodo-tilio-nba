@@ -12,12 +12,10 @@ DVP_ELITE = {"PG": {"TeamA": {"rank": 2, "pts": 28.4}}}   # rank ≤ 3  → +3
 DVP_GOOD  = {"PG": {"TeamA": {"rank": 5, "pts": 24.1}}}   # rank 4-6  → +2
 DVP_POOR  = {"PG": {"TeamA": {"rank": 7, "pts": 20.0}}}   # rank > 6  → discard
 
-RECENT_HOT    = {"pts": 19.0, "min": 28.0, "games": 15}   # ≥ 18 → +3
-RECENT_SOLID  = {"pts": 13.0, "min": 24.0, "games": 15}   # ≥ 12 → +2
-RECENT_MOD    = {"pts": 8.0,  "min": 20.0, "games": 15}   # ≥ 7  → +1
-RECENT_LOW    = {"pts": 5.0,  "min": 18.0, "games": 15}   # < 7  → +0
-
-SEASON_AVG_10 = 10.0   # baseline for above-average checks
+RECENT_HOT    = {"pts": 19.0, "min": 28.0, "games": 15, "season_avg_pts": 10.0}
+RECENT_SOLID  = {"pts": 13.0, "min": 24.0, "games": 15, "season_avg_pts": 10.0}
+RECENT_MOD    = {"pts": 8.0,  "min": 20.0, "games": 15, "season_avg_pts": 10.0}
+RECENT_LOW    = {"pts": 5.0,  "min": 18.0, "games": 15, "season_avg_pts": 10.0}
 
 ZONES_PAINT = {"Restricted Area": {"attempts": 20, "made": 14, "pct": 70.0, "frequency": 50.0}}
 OPP_DEFENSE_PAINT = {"Restricted Area": {"fgm": 18.0, "fga": 28.0, "pct": 0.64}}
@@ -29,7 +27,7 @@ OPP_DEFENSE_PAINT = {"Restricted Area": {"fgm": 18.0, "fga": 28.0, "pct": 0.64}}
 def test_gate0_not_stepping_up_returns_none():
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_HOT,
         player_zones=ZONES_PAINT, opponent_defense_zones=OPP_DEFENSE_PAINT,
         is_stepping_up=False,
     )
@@ -45,7 +43,7 @@ def test_gate0_not_stepping_up_returns_none():
 def test_gate1_poor_dvp_rank_returns_none():
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_POOR,
-        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_HOT,
         player_zones=ZONES_PAINT, opponent_defense_zones=OPP_DEFENSE_PAINT,
         is_stepping_up=True,
     )
@@ -57,7 +55,7 @@ def test_gate1_poor_dvp_rank_returns_none():
 def test_gate1_elite_dvp_adds_3():
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats={}, season_avg_pts=SEASON_AVG_10,
+        recent_stats={},
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -68,7 +66,7 @@ def test_gate1_elite_dvp_adds_3():
 def test_gate1_good_dvp_adds_2():
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
-        recent_stats={}, season_avg_pts=SEASON_AVG_10,
+        recent_stats={},
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -83,7 +81,7 @@ def test_signal2_below_season_avg_does_not_score():
     # recent pts (8.0) is below season avg (10.0) → Signal 2 scores 0
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_MOD, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_MOD,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -94,10 +92,10 @@ def test_signal2_below_season_avg_does_not_score():
 
 def test_signal2_equal_to_season_avg_does_not_score():
     # pts == season_avg_pts: strict greater-than, equal does not qualify
-    recent = {"pts": 10.0, "min": 20.0, "games": 15}
+    recent = {"pts": 10.0, "min": 20.0, "games": 15, "season_avg_pts": 10.0}
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=recent, season_avg_pts=10.0,
+        recent_stats=recent,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -109,7 +107,7 @@ def test_signal2_above_avg_hot_scorer_adds_3():
     # recent pts 19.0 > season avg 10.0 and ≥ 18 → +3
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_HOT,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -120,7 +118,7 @@ def test_signal2_above_avg_hot_scorer_adds_3():
 def test_signal2_above_avg_solid_scorer_adds_2():
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_SOLID, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_SOLID,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -132,7 +130,7 @@ def test_signal2_above_avg_moderate_scorer_adds_1():
     # recent pts 8.0 > season avg 5.0 and ≥ 7 → moderate scorer, +1
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_MOD, season_avg_pts=5.0,
+        recent_stats={**RECENT_MOD, "season_avg_pts": 5.0},
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -142,10 +140,10 @@ def test_signal2_above_avg_moderate_scorer_adds_1():
 
 def test_signal2_above_avg_but_below_7pts_no_message():
     # recent pts 6.0 > season avg 4.0, but < 7 → no points, no message
-    recent = {"pts": 6.0, "min": 18.0, "games": 15}
+    recent = {"pts": 6.0, "min": 18.0, "games": 15, "season_avg_pts": 4.0}
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=recent, season_avg_pts=4.0,
+        recent_stats=recent,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -156,7 +154,7 @@ def test_signal2_above_avg_but_below_7pts_no_message():
 def test_signal2_empty_recent_stats_skips_block():
     score, _, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats={}, season_avg_pts=SEASON_AVG_10,
+        recent_stats={},
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -173,7 +171,7 @@ def test_signal3_zone_mismatch_discards_player():
     opp_defense_three = {"Above the Break 3": {"fgm": 18.0, "fga": 28.0, "pct": 0.64}}
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_HOT,
         player_zones=zones_paint, opponent_defense_zones=opp_defense_three,
         is_stepping_up=True,
     )
@@ -190,7 +188,7 @@ def test_rating_best_of_night_at_7():
     # DvP +3, form +3, zone +1 = 7
     score, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
-        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_HOT,
         player_zones=ZONES_PAINT, opponent_defense_zones=OPP_DEFENSE_PAINT,
         is_stepping_up=True,
     )
@@ -202,7 +200,7 @@ def test_rating_very_favorable_at_5():
     # DvP +2, form +3, zone +0 (no zone data) = 5
     score, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
-        recent_stats=RECENT_HOT, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_HOT,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -214,7 +212,7 @@ def test_rating_none_below_5():
     # DvP +2, form +2 (solid but not hot), no zone = 4 → None
     score, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
-        recent_stats=RECENT_SOLID, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_SOLID,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -226,7 +224,7 @@ def test_no_favorable_tier():
     # Score of 4 must not return FAVORABLE
     _, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
-        recent_stats=RECENT_SOLID, season_avg_pts=SEASON_AVG_10,
+        recent_stats=RECENT_SOLID,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
@@ -252,16 +250,16 @@ def test_run_analysis_wiring_no_type_error():
         "HME": {
             "team_name": "TeamA",
             "starters": [{"name": "John Doe", "position": "PG"}],
-            "out": ["Injured Player"],
+            "out": [{"name": "Injured Player", "position": "PG"}],
         },
         "AWY": {"team_name": "TeamB", "starters": [], "out": []},
     }
     dvp = {}
 
     with patch("analysis.engine.get_all_teams_defense_zones", return_value={}), \
-         patch("analysis.engine.get_player_season_stats", return_value={
-             9999: {"min": 20.0, "pts": 10.0}
-         }), \
+         patch("analysis.engine.get_player_season_data", return_value=(
+             {9999: 20.0}, {9999}
+         )), \
          patch("analysis.engine._find_player_id", return_value=9999), \
          patch("analysis.engine.get_player_recent_stats", return_value={"pts": 15.0, "min": 22.0, "games": 15}), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
@@ -600,7 +598,9 @@ def test_run_analysis_position_gate_compatible_starter_out_yields_candidate():
         candidate_pos="PG",
     )
     with patch("analysis.engine.get_all_teams_defense_zones", return_value={}), \
-         patch("analysis.engine.get_player_season_minutes", return_value={9999: 20.0, 8888: 30.0}), \
+         patch("analysis.engine.get_player_season_data", return_value=(
+             {9999: 20.0, 8888: 30.0}, {8888}
+         )), \
          patch("analysis.engine._find_player_id", side_effect=lambda name: 8888 if "Star" in name else 9999), \
          patch("analysis.engine.get_player_recent_stats", return_value={"pts": 15.0, "season_avg_pts": 10.0, "min": 22.0, "games": 15}), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
@@ -624,7 +624,9 @@ def test_run_analysis_position_gate_incompatible_starter_out_excludes_candidate(
         candidate_pos="PG",
     )
     with patch("analysis.engine.get_all_teams_defense_zones", return_value={}), \
-         patch("analysis.engine.get_player_season_minutes", return_value={9999: 20.0, 8888: 30.0}), \
+         patch("analysis.engine.get_player_season_data", return_value=(
+             {9999: 20.0, 8888: 30.0}, {8888}
+         )), \
          patch("analysis.engine._find_player_id", side_effect=lambda name: 8888 if "Star" in name else 9999), \
          patch("analysis.engine.get_player_recent_stats", return_value={"pts": 15.0, "season_avg_pts": 10.0, "min": 22.0, "games": 15}), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
@@ -651,7 +653,9 @@ def test_run_analysis_replaces_field_contains_only_matched_starters():
     dvp = {"SG": {"TeamB": {"rank": 1, "pts": 30.0}}}
 
     with patch("analysis.engine.get_all_teams_defense_zones", return_value={}), \
-         patch("analysis.engine.get_player_season_minutes", return_value={9999: 20.0, 7777: 30.0, 8888: 30.0}), \
+         patch("analysis.engine.get_player_season_data", return_value=(
+             {9999: 20.0, 7777: 30.0, 8888: 30.0}, {7777, 8888}
+         )), \
          patch("analysis.engine._find_player_id", side_effect=lambda name: {
              "Star PG": 7777, "Star C": 8888
          }.get(name, 9999)), \

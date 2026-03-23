@@ -175,34 +175,58 @@ def get_all_teams_defense_zones(last_n_games=15):
     return result
 
 
-STARTER_MIN_THRESHOLD = 27.0  # season avg min/game above which = regular starter
-
-def get_player_season_minutes():
+def get_player_season_data():
     """
-    Returns {player_id: season_avg_min} for all players with >= 5 games played.
+    Returns (season_minutes, starter_ids):
+      - season_minutes: {player_id: avg_min_per_game} for players with >= 5 GP
+      - starter_ids:    set of player_ids who start > 50% of their games
 
-    LeagueDashPlayerStats does not expose GS (games started), so we use
-    season-long minutes per game as a reliable proxy for starter status:
-      >= 27 min/game  →  regular starter (skip)
-      <  27 min/game  →  bench player   (eligible if team has injuries)
+    Uses two LeagueDashPlayerStats calls:
+      1. All games → total GP and minutes per player
+      2. starter_bench_nullable="Starters" → GP in that split = games started
 
-    This threshold cleanly separates starters (28-40 min) from bench players
-    (8-26 min) based on the current season distribution.
+    A player is classified as a starter if they started more than half their
+    games this season (GS / GP > 0.5). This is more accurate than a minutes
+    threshold because 6th-man / high-usage bench players (e.g. 28+ min/g off
+    the bench) are correctly identified as bench players.
     """
     time.sleep(DELAY)
-    df = _retry(lambda: leaguedashplayerstats.LeagueDashPlayerStats(
+    all_df = _retry(lambda: leaguedashplayerstats.LeagueDashPlayerStats(
         season=SEASON,
         season_type_all_star="Regular Season",
         per_mode_detailed="PerGame",
     ).get_data_frames()[0])
 
-    result = {}
-    for _, row in df.iterrows():
+    time.sleep(DELAY)
+    starters_df = _retry(lambda: leaguedashplayerstats.LeagueDashPlayerStats(
+        season=SEASON,
+        season_type_all_star="Regular Season",
+        per_mode_detailed="PerGame",
+        starter_bench_nullable="Starters",
+    ).get_data_frames()[0])
+
+    # Total GP and minutes per player
+    season_minutes = {}
+    total_gp = {}
+    for _, row in all_df.iterrows():
         gp = int(row["GP"])
         if gp < 5:
-            continue  # too few games for a reliable reading
-        result[int(row["PLAYER_ID"])] = round(float(row["MIN"]), 1)
-    return result
+            continue
+        pid = int(row["PLAYER_ID"])
+        season_minutes[pid] = round(float(row["MIN"]), 1)
+        total_gp[pid] = gp
+
+    # Games started per player (GP in the "Starters" split = number of starts)
+    games_started = {int(row["PLAYER_ID"]): int(row["GP"]) for _, row in starters_df.iterrows()}
+
+    # Starter = started > 50% of games
+    starter_ids = set()
+    for pid, gp in total_gp.items():
+        gs = games_started.get(pid, 0)
+        if gs > gp * 0.5:
+            starter_ids.add(pid)
+
+    return season_minutes, starter_ids
 
 
 def get_player_recent_stats(player_id, last_n_games=15):
