@@ -188,48 +188,24 @@ def run_scheduled_analysis(games=None):
       2. Salva resultado no Firestore (coleção 'analyses')
       3. Envia notificação no Telegram
     """
-    import sys
-    from datetime import date
-
-    today = date.today().isoformat()
+    today = datetime.now(BRT).date().isoformat()
     print(f"[scheduler] Iniciando análise automática — {today}")
 
     try:
-        from scrapers.nba import get_todays_games
-        from scrapers.rotowire import get_projected_lineups
-        from scrapers.fantasypros import get_defense_vs_position
-        from scrapers.odds import get_event_ids, get_player_lines
+        from analysis.pipeline import run_pipeline
         from scrapers.telegram import send_analysis, send_error
-        from analysis.engine import run_analysis
 
-        if games is None:
-            games = get_todays_games()
+        stats, games = run_pipeline(games)
 
-        if not games:
+        if stats is None:
             print("[scheduler] Sem jogos — análise cancelada.")
             return
 
-        print(f"  {len(games)} jogos esta noite")
-
-        lineups = get_projected_lineups()
-        print(f"  {len(lineups)} times carregados")
-
-        dvp = get_defense_vs_position()
-        print("  DvP carregado")
-
-        candidates = run_analysis(games, lineups, dvp)
-        print(f"  {len(candidates)} candidato(s) encontrado(s)")
-
-        event_ids = get_event_ids(games)
-        lines = get_player_lines(candidates, event_ids)
-        for c in candidates:
-            c["line"] = lines.get(c["player"])
-
         # Salva no Firestore
-        _save_analysis_to_firestore(today, candidates, games)
+        _save_analysis_to_firestore(today, stats, games)
 
         # Notifica Telegram
-        send_analysis(candidates, today, len(games))
+        send_analysis(stats, today, len(games))
 
         print(f"[scheduler] Análise de {today} concluída e enviada ✓")
 
@@ -243,21 +219,22 @@ def run_scheduled_analysis(games=None):
             pass
 
 
-def _save_analysis_to_firestore(date_str: str, candidates: list, games: list):
+def _save_analysis_to_firestore(date_str: str, stats: dict, games: list):
     """Salva o resultado da análise no Firestore em analyses/{date_str}."""
     try:
         from firebase_admin import firestore
         db = firestore.client()
+        total = sum(len(v) for v in stats.values())
         doc = {
             "date": date_str,
             "ran_at": datetime.now(timezone.utc).isoformat(),
             "triggered_by": "scheduler",
             "game_count": len(games),
-            "candidate_count": len(candidates),
-            "results": candidates,
+            "candidate_count": total,
+            "stats": stats,
         }
         db.collection("analyses").document(date_str).set(doc)
         print(f"  [firestore] Análise de {date_str} salva ✓")
     except Exception as e:
-        logger.warning(f"[scheduler] Falha ao salvar no Firestore: {e}")
+        logger.warning("Failed to save to Firestore: %s", e)
         print(f"  [firestore] AVISO: não foi possível salvar — {e}")

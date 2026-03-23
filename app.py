@@ -70,64 +70,33 @@ def _run_analysis():
     sys.stdout = log_stream
 
     try:
-        from scrapers.nba import get_todays_games
-        from scrapers.rotowire import get_projected_lineups
-        from scrapers.fantasypros import get_defense_vs_position
-        from scrapers.odds import get_event_ids, get_player_lines
-        from analysis.engine import run_analysis
+        from datetime import datetime
+        from analysis.pipeline import run_pipeline
+        from scrapers.nba import BRT
 
-        print("Buscando jogos de hoje...")
-        games = get_todays_games()
-
-        if not games:
-            print("Nenhum jogo hoje.")
-            with state_lock:
-                analysis_state["status"] = "done"
-                analysis_state["results"] = []
-            return
-
-        print(f"  {len(games)} jogos esta noite")
-
-        print("Buscando lineups projetados (RotoWire)...")
-        lineups = get_projected_lineups()
-        print(f"  {len(lineups)} times carregados")
-
-        print("Buscando Defesa por Posição (FantasyPros)...")
-        dvp = get_defense_vs_position()
-        print("  Concluído")
-
-        print("Rodando análise...")
-        candidates = run_analysis(games, lineups, dvp)
-        print(f"  {len(candidates)} candidato(s) encontrado(s)")
-
-        print("Buscando linhas de apostas (The Odds API)...")
-        event_ids = get_event_ids(games)
-        lines = get_player_lines(candidates, event_ids)
-        for c in candidates:
-            c["line"] = lines.get(c["player"])
+        stats, games = run_pipeline()
+        today = datetime.now(BRT).date().isoformat()
 
         with state_lock:
             analysis_state["status"] = "done"
-            analysis_state["results"] = candidates
+            analysis_state["results"] = stats if stats else {}
 
         # Salva no Firestore (histórico de análises)
-        if candidates:
+        if stats:
             try:
-                from datetime import date
                 from scheduler import _save_analysis_to_firestore
-                _save_analysis_to_firestore(date.today().isoformat(), candidates, games)
+                _save_analysis_to_firestore(today, stats, games)
                 from firebase_admin import firestore as _fs
-                _fs.client().collection("analyses").document(
-                    date.today().isoformat()
-                ).update({"triggered_by": "manual"})
+                _fs.client().collection("analyses").document(today).update(
+                    {"triggered_by": "manual"}
+                )
             except Exception as _e:
                 print(f"  [firestore] Aviso ao salvar análise manual: {_e}")
 
         # Notifica Telegram (melhor esforço — falha silenciosa)
         try:
             from scrapers.telegram import send_analysis
-            from datetime import date
-            send_analysis(candidates, date.today().isoformat(), len(games))
+            send_analysis(stats or {}, today, len(games) if games else 0)
             print("  [telegram] Notificação enviada ✓")
         except Exception as _te:
             print(f"  [telegram] Aviso: não foi possível enviar — {_te}")
