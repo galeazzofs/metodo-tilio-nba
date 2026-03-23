@@ -2,9 +2,9 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import pytest
 try:
-    from scrapers.nba import get_player_season_stats
+    from scrapers.nba import get_player_season_data
 except ImportError:
-    get_player_season_stats = None
+    get_player_season_data = None
 from scrapers.nba import get_conference_standings, get_player_recent_stats, get_team_defense_vs_position, get_team_defense_tracking
 
 
@@ -129,48 +129,78 @@ def _make_stats_df(rows):
     )
 
 
-def test_returns_min_and_pts_for_qualifying_players():
-    df = _make_stats_df([
+def test_returns_season_minutes_for_qualifying_players():
+    all_df = _make_stats_df([
         (1, 10, 28.5, 18.2),
         (2, 10, 22.0, 9.4),
     ])
-    mock_endpoint = MagicMock()
-    mock_endpoint.get_data_frames.return_value = [df]
+    # Starters split: player 1 started 8/10 games (starter), player 2 started 3/10 (bench)
+    starters_df = pd.DataFrame([(1, 8, 28.5, 18.2)], columns=["PLAYER_ID", "GP", "MIN", "PTS"])
+    call_count = {"n": 0}
+    def fake_endpoint(**kwargs):
+        mock = MagicMock()
+        if call_count["n"] == 0:
+            mock.get_data_frames.return_value = [all_df]
+        else:
+            mock.get_data_frames.return_value = [starters_df]
+        call_count["n"] += 1
+        return mock
 
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_endpoint):
-        result = get_player_season_stats()
+    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", side_effect=fake_endpoint), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        season_minutes, starter_ids = get_player_season_data()
 
-    assert result == {
-        1: {"min": 28.5, "pts": 18.2},
-        2: {"min": 22.0, "pts": 9.4},
-    }
+    assert season_minutes[1] == 28.5
+    assert season_minutes[2] == 22.0
+    assert 1 in starter_ids
+    assert 2 not in starter_ids
 
 
 def test_excludes_players_with_fewer_than_5_games():
-    df = _make_stats_df([
+    all_df = _make_stats_df([
         (1, 4, 30.0, 20.0),   # GP < 5 → excluded
         (2, 5, 25.0, 12.0),   # GP == 5 → included
     ])
-    mock_endpoint = MagicMock()
-    mock_endpoint.get_data_frames.return_value = [df]
+    starters_df = pd.DataFrame(columns=["PLAYER_ID", "GP", "MIN", "PTS"])
+    call_count = {"n": 0}
+    def fake_endpoint(**kwargs):
+        mock = MagicMock()
+        if call_count["n"] == 0:
+            mock.get_data_frames.return_value = [all_df]
+        else:
+            mock.get_data_frames.return_value = [starters_df]
+        call_count["n"] += 1
+        return mock
 
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_endpoint):
-        result = get_player_season_stats()
+    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", side_effect=fake_endpoint), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        season_minutes, starter_ids = get_player_season_data()
 
-    assert 1 not in result
-    assert 2 in result
+    assert 1 not in season_minutes
+    assert 2 in season_minutes
 
 
-def test_rounds_values_to_one_decimal():
-    df = _make_stats_df([(1, 10, 28.456, 17.678)])
-    mock_endpoint = MagicMock()
-    mock_endpoint.get_data_frames.return_value = [df]
+def test_rounds_minutes_to_one_decimal():
+    all_df = _make_stats_df([(1, 10, 28.456, 17.678)])
+    starters_df = pd.DataFrame(columns=["PLAYER_ID", "GP", "MIN", "PTS"])
+    call_count = {"n": 0}
+    def fake_endpoint(**kwargs):
+        mock = MagicMock()
+        if call_count["n"] == 0:
+            mock.get_data_frames.return_value = [all_df]
+        else:
+            mock.get_data_frames.return_value = [starters_df]
+        call_count["n"] += 1
+        return mock
 
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_endpoint):
-        result = get_player_season_stats()
+    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", side_effect=fake_endpoint), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        season_minutes, starter_ids = get_player_season_data()
 
-    assert result[1]["min"] == 28.5
-    assert result[1]["pts"] == 17.7
+    assert season_minutes[1] == 28.5
 
 
 # --------------- get_player_recent_stats tests ---------------

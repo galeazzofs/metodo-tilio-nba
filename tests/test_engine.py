@@ -12,8 +12,8 @@ from analysis.engine import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-DVP_ELITE = {"PG": {"TeamA": {"rank": 2, "pts": 28.4}}}   # rank ≤ 3  → +3
-DVP_GOOD  = {"PG": {"TeamA": {"rank": 5, "pts": 24.1}}}   # rank 4-6  → +2
+DVP_ELITE = {"PG": {"TeamA": {"rank": 2, "pts": 28.4}}}   # rank ≤ 6  → +3
+DVP_GOOD  = {"PG": {"TeamA": {"rank": 5, "pts": 24.1}}}   # rank ≤ 6  → +3
 DVP_POOR  = {"PG": {"TeamA": {"rank": 7, "pts": 20.0}}}   # rank > 6  → discard
 
 RECENT_HOT    = {"pts": 19.0, "min": 28.0, "games": 15, "season_avg_pts": 10.0}
@@ -67,14 +67,15 @@ def test_gate1_elite_dvp_adds_3():
     assert score == 3
 
 
-def test_gate1_good_dvp_adds_2():
+def test_gate1_good_dvp_adds_3():
+    # rank 5 <= 6 → binary +3 (same as elite)
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
         recent_stats={},
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 2
+    assert score == 3
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +95,8 @@ def test_signal2_below_season_avg_does_not_score():
     assert not any("scorer" in s.lower() for s in signals)
 
 
-def test_signal2_equal_to_season_avg_does_not_score():
-    # pts == season_avg_pts: strict greater-than, equal does not qualify
+def test_signal2_equal_to_season_avg_does_score():
+    # pts == season_avg_pts: >= means equal qualifies for +1
     recent = {"pts": 10.0, "min": 20.0, "games": 15, "season_avg_pts": 10.0}
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
@@ -103,47 +104,47 @@ def test_signal2_equal_to_season_avg_does_not_score():
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 3  # DvP only
-    assert not any("scorer" in s.lower() for s in signals)
+    assert score == 4  # DvP +3, form +1
 
 
-def test_signal2_above_avg_hot_scorer_adds_3():
-    # recent pts 19.0 > season avg 10.0 and ≥ 18 → +3
+def test_signal2_above_avg_form_adds_1():
+    # recent pts 19.0 >= season avg 10.0 → +1 (binary, not tiered)
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
         recent_stats=RECENT_HOT,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 6
-    assert any("Hot scorer" in s for s in signals)
+    assert score == 4  # DvP +3, form +1
+    assert any("Forma recente" in s for s in signals)
 
 
-def test_signal2_above_avg_solid_scorer_adds_2():
+def test_signal2_above_avg_solid_form_adds_1():
+    # recent pts 13.0 >= season avg 10.0 → +1
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
         recent_stats=RECENT_SOLID,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 5
-    assert any("Solid scorer" in s for s in signals)
+    assert score == 4  # DvP +3, form +1
+    assert any("Forma recente" in s for s in signals)
 
 
-def test_signal2_above_avg_moderate_scorer_adds_1():
-    # recent pts 8.0 > season avg 5.0 and ≥ 7 → moderate scorer, +1
+def test_signal2_above_avg_moderate_form_adds_1():
+    # recent pts 8.0 >= season avg 5.0 → +1
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
         recent_stats={**RECENT_MOD, "season_avg_pts": 5.0},
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 4
-    assert any("Moderate scorer" in s for s in signals)
+    assert score == 4  # DvP +3, form +1
+    assert any("Forma recente" in s for s in signals)
 
 
-def test_signal2_above_avg_but_below_7pts_no_message():
-    # recent pts 6.0 > season avg 4.0, but < 7 → no points, no message
+def test_signal2_above_avg_low_pts_still_scores():
+    # recent pts 6.0 >= season avg 4.0 → +1 (no minimum pts threshold)
     recent = {"pts": 6.0, "min": 18.0, "games": 15, "season_avg_pts": 4.0}
     score, rating, signals = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
@@ -151,8 +152,8 @@ def test_signal2_above_avg_but_below_7pts_no_message():
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 3  # DvP only
-    assert not any("scorer" in s.lower() for s in signals)
+    assert score == 4  # DvP +3, form +1
+    assert any("Forma recente" in s for s in signals)
 
 
 def test_signal2_empty_recent_stats_skips_block():
@@ -188,39 +189,39 @@ def test_signal3_zone_mismatch_discards_player():
 # Rating thresholds
 # ---------------------------------------------------------------------------
 
-def test_rating_best_of_night_at_7():
-    # DvP +3, form +3, zone +1 = 7
+def test_rating_best_of_night_at_6():
+    # DvP +3, form +1, zone +2 = 6 (maximum possible score)
     score, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_ELITE,
         recent_stats=RECENT_HOT,
         player_zones=ZONES_PAINT, opponent_defense_zones=OPP_DEFENSE_PAINT,
         is_stepping_up=True,
     )
-    assert score == 7
+    assert score == 6
     assert rating == "BEST OF THE NIGHT"
 
 
-def test_rating_very_favorable_at_5():
-    # DvP +2, form +3, zone +0 (no zone data) = 5
+def test_rating_very_favorable_at_4():
+    # DvP +3 (rank 5 <= 6), form +1, no zone data = 4
     score, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
         recent_stats=RECENT_HOT,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 5
+    assert score == 4
     assert rating == "VERY FAVORABLE"
 
 
-def test_rating_none_below_5():
-    # DvP +2, form +2 (solid but not hot), no zone = 4 → None
+def test_rating_none_below_4():
+    # DvP +3, form below avg (no +1), no zone = 3 → rating None
     score, rating, _ = _score_player(
         position="PG", opponent_name="TeamA", dvp=DVP_GOOD,
-        recent_stats=RECENT_SOLID,
+        recent_stats=RECENT_LOW,
         player_zones=None, opponent_defense_zones=None,
         is_stepping_up=True,
     )
-    assert score == 4
+    assert score == 3
     assert rating is None
 
 
