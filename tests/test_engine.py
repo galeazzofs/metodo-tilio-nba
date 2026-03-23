@@ -4,7 +4,7 @@ import io
 import sys
 from analysis.engine import (
     _score_player, run_analysis, _position_compatible, _team_has_stake,
-    filter_games_by_stake, _ordinal, _score_player_ast,
+    filter_games_by_stake, _ordinal, _score_player_ast, _score_player_reb,
 )
 
 # ---------------------------------------------------------------------------
@@ -799,4 +799,92 @@ def test_ast_fallback_tracking_none_rank_4():
     )
     assert score == 4
     assert signals.get("potential_ast", 0) == 0
+    assert rating == "VERY FAVORABLE"
+
+
+# ---------------------------------------------------------------------------
+# _score_player_reb
+# ---------------------------------------------------------------------------
+
+TEAM_DEF_REB_ELITE = {"PG": {"rank_ast": 10, "rank_reb": 2, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_REB_GOOD = {"PG": {"rank_ast": 10, "rank_reb": 5, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_REB_POOR = {"PG": {"rank_ast": 10, "rank_reb": 7, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_REB_TOP3 = {"PG": {"rank_ast": 10, "rank_reb": 3, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_REB_RANK4 = {"PG": {"rank_ast": 10, "rank_reb": 4, "rank_three_pm": 10, "rank_three_pa": 10}}
+
+RECENT_REB_ABOVE_AVG = {"reb": 8.0, "season_avg_reb": 5.0}
+RECENT_REB_BELOW_AVG = {"reb": 3.0, "season_avg_reb": 5.0}
+
+TRACKING_REB_GOOD = {"rank_reb_chances": 4}
+TRACKING_REB_BAD = {"rank_reb_chances": 8}
+
+
+def test_reb_gate_not_stepping_up():
+    score, rating, signals, context = _score_player_reb(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_REB_ELITE,
+        recent_stats=RECENT_REB_ABOVE_AVG,
+        tracking_data=TRACKING_REB_GOOD,
+        is_stepping_up=False,
+    )
+    assert score == 0
+    assert rating is None
+    assert signals == {}
+    assert context == {}
+
+
+def test_reb_gate_dvp_rank_above_6():
+    score, rating, signals, context = _score_player_reb(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_REB_POOR,
+        recent_stats=RECENT_REB_ABOVE_AVG,
+        tracking_data=TRACKING_REB_GOOD,
+        is_stepping_up=True,
+    )
+    assert score == 0
+    assert rating is None
+
+
+def test_reb_full_score_6():
+    """DvP rank 2 (+3) + form above avg (+1) + tracking rank 4 (+2) = 6 BEST."""
+    score, rating, signals, context = _score_player_reb(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_REB_ELITE,
+        recent_stats=RECENT_REB_ABOVE_AVG,
+        tracking_data=TRACKING_REB_GOOD,
+        is_stepping_up=True,
+    )
+    assert score == 6
+    assert rating == "BEST OF THE NIGHT"
+    assert signals["dvp"] == 3
+    assert signals["recent_form"] == 1
+    assert signals["reb_opportunity"] == 2
+    assert context["dvp_rank"] == 2
+    assert len(context["signal_descriptions"]) == 3
+
+
+def test_reb_fallback_tracking_none_rank_3():
+    """tracking=None, rank_reb=3 (top 3) -> +2 fallback."""
+    score, rating, signals, context = _score_player_reb(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_REB_TOP3,
+        recent_stats=RECENT_REB_ABOVE_AVG,
+        tracking_data=None,
+        is_stepping_up=True,
+    )
+    assert score == 6
+    assert signals["reb_opportunity"] == 2
+
+
+def test_reb_fallback_tracking_none_rank_4():
+    """tracking=None, rank_reb=4 (not top 3) -> no bonus, score=4."""
+    score, rating, signals, context = _score_player_reb(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_REB_RANK4,
+        recent_stats=RECENT_REB_ABOVE_AVG,
+        tracking_data=None,
+        is_stepping_up=True,
+    )
+    assert score == 4
+    assert signals.get("reb_opportunity", 0) == 0
     assert rating == "VERY FAVORABLE"

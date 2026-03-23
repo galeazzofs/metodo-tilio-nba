@@ -366,6 +366,66 @@ def _score_player_ast(position, opponent_name, team_defense, recent_stats, track
     return score, rating, signals, context
 
 
+def _score_player_reb(position, opponent_name, team_defense, recent_stats, tracking_data, is_stepping_up):
+    """
+    Score a player's rebound upside (0-6 scale).
+    Returns (score, rating, signals_dict, context_dict).
+    """
+    if not is_stepping_up:
+        return 0, None, {}, {}
+
+    pos_def = team_defense.get(position, {})
+    dvp_rank = pos_def.get("rank_reb")
+
+    score = 0
+    signals = {}
+    descriptions = []
+
+    # --- Signal 1: DvP REB rank (0 or 3 pts) ---
+    if dvp_rank is None or dvp_rank > 6:
+        return 0, None, {}, {}
+
+    score += 3
+    signals["dvp"] = 3
+    descriptions.append(f"Elite REB matchup vs {opponent_name} (DvP #{dvp_rank})")
+
+    # --- Signal 2: Recent form (0 or 1 pt) ---
+    reb_recent = recent_stats.get("reb", 0)
+    season_avg_reb = recent_stats.get("season_avg_reb", 0)
+    if reb_recent >= season_avg_reb:
+        score += 1
+        signals["recent_form"] = 1
+        descriptions.append(f"REB form above avg ({reb_recent} vs {season_avg_reb} season)")
+    else:
+        signals["recent_form"] = 0
+
+    # --- Signal 3: Rebound opportunity (0 or 2 pts) ---
+    reb_bonus = 0
+    if tracking_data is not None and tracking_data.get("rank_reb_chances", 99) <= 6:
+        reb_bonus = 2
+        descriptions.append(f"High REB chances (tracking rank {tracking_data['rank_reb_chances']})")
+    elif tracking_data is None and dvp_rank <= 3:
+        reb_bonus = 2
+        descriptions.append(f"Fallback: top-3 DvP REB rank ({dvp_rank}) as rebound opportunity proxy")
+
+    if reb_bonus:
+        score += reb_bonus
+        signals["reb_opportunity"] = reb_bonus
+    else:
+        signals["reb_opportunity"] = 0
+
+    # --- Rating ---
+    if score >= 6:
+        rating = "BEST OF THE NIGHT"
+    elif score >= 4:
+        rating = "VERY FAVORABLE"
+    else:
+        rating = None
+
+    context = {"dvp_rank": dvp_rank, "signal_descriptions": descriptions}
+    return score, rating, signals, context
+
+
 # ---------------------------------------------------------------------------
 # Main analysis
 # ---------------------------------------------------------------------------
