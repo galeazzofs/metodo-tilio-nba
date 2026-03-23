@@ -305,6 +305,67 @@ def _score_player(position, opponent_name, dvp, recent_stats, player_zones, oppo
     return score, rating, signals
 
 
+def _score_player_ast(position, opponent_name, team_defense, recent_stats, tracking_data, is_stepping_up):
+    """
+    Score a player's assist upside (0-6 scale).
+    Returns (score, rating, signals_dict, context_dict).
+    """
+    # --- Gate 0: Stepping up (mandatory) ---
+    if not is_stepping_up:
+        return 0, None, {}, {}
+
+    pos_def = team_defense.get(position, {})
+    dvp_rank = pos_def.get("rank_ast")
+
+    score = 0
+    signals = {}
+    descriptions = []
+
+    # --- Signal 1: DvP AST rank (0 or 3 pts) ---
+    if dvp_rank is None or dvp_rank > 6:
+        return 0, None, {}, {}
+
+    score += 3
+    signals["dvp"] = 3
+    descriptions.append(f"Elite AST matchup vs {opponent_name} (DvP #{dvp_rank})")
+
+    # --- Signal 2: Recent form (0 or 1 pt) ---
+    ast_recent = recent_stats.get("ast", 0)
+    season_avg_ast = recent_stats.get("season_avg_ast", 0)
+    if ast_recent >= season_avg_ast:
+        score += 1
+        signals["recent_form"] = 1
+        descriptions.append(f"AST form above avg ({ast_recent} vs {season_avg_ast} season)")
+    else:
+        signals["recent_form"] = 0
+
+    # --- Signal 3: Potential AST (0 or 2 pts) ---
+    potential_bonus = 0
+    if tracking_data is not None and tracking_data.get("rank_potential_ast", 99) <= 6:
+        potential_bonus = 2
+        descriptions.append(f"High potential AST (tracking rank {tracking_data['rank_potential_ast']})")
+    elif tracking_data is None and dvp_rank <= 3:
+        potential_bonus = 2
+        descriptions.append(f"Fallback: top-3 DvP AST rank ({dvp_rank}) as potential AST proxy")
+
+    if potential_bonus:
+        score += potential_bonus
+        signals["potential_ast"] = potential_bonus
+    else:
+        signals["potential_ast"] = 0
+
+    # --- Rating ---
+    if score >= 6:
+        rating = "BEST OF THE NIGHT"
+    elif score >= 4:
+        rating = "VERY FAVORABLE"
+    else:
+        rating = None
+
+    context = {"dvp_rank": dvp_rank, "signal_descriptions": descriptions}
+    return score, rating, signals, context
+
+
 # ---------------------------------------------------------------------------
 # Main analysis
 # ---------------------------------------------------------------------------

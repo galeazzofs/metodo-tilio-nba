@@ -2,7 +2,10 @@
 from unittest.mock import patch
 import io
 import sys
-from analysis.engine import _score_player, run_analysis, _position_compatible, _team_has_stake, filter_games_by_stake, _ordinal
+from analysis.engine import (
+    _score_player, run_analysis, _position_compatible, _team_has_stake,
+    filter_games_by_stake, _ordinal, _score_player_ast,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -708,3 +711,92 @@ def test_filter_games_by_stake_wiring_in_main():
     # standings and filter must precede lineups
     assert call_order.index("standings") < call_order.index("lineups")
     assert call_order.index("filter") < call_order.index("lineups")
+
+
+# ---------------------------------------------------------------------------
+# _score_player_ast
+# ---------------------------------------------------------------------------
+
+# Fixtures for AST tests
+TEAM_DEF_AST_ELITE = {"PG": {"rank_ast": 2, "rank_reb": 10, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_AST_GOOD = {"PG": {"rank_ast": 5, "rank_reb": 10, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_AST_POOR = {"PG": {"rank_ast": 7, "rank_reb": 10, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_AST_TOP3 = {"PG": {"rank_ast": 2, "rank_reb": 10, "rank_three_pm": 10, "rank_three_pa": 10}}
+TEAM_DEF_AST_RANK4 = {"PG": {"rank_ast": 4, "rank_reb": 10, "rank_three_pm": 10, "rank_three_pa": 10}}
+
+RECENT_AST_ABOVE_AVG = {"ast": 7.0, "season_avg_ast": 5.0}
+RECENT_AST_BELOW_AVG = {"ast": 3.0, "season_avg_ast": 5.0}
+
+TRACKING_AST_GOOD = {"rank_potential_ast": 4}
+TRACKING_AST_BAD = {"rank_potential_ast": 8}
+
+
+def test_ast_gate_not_stepping_up():
+    score, rating, signals, context = _score_player_ast(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_AST_ELITE,
+        recent_stats=RECENT_AST_ABOVE_AVG,
+        tracking_data=TRACKING_AST_GOOD,
+        is_stepping_up=False,
+    )
+    assert score == 0
+    assert rating is None
+    assert signals == {}
+    assert context == {}
+
+
+def test_ast_gate_dvp_rank_above_6():
+    score, rating, signals, context = _score_player_ast(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_AST_POOR,
+        recent_stats=RECENT_AST_ABOVE_AVG,
+        tracking_data=TRACKING_AST_GOOD,
+        is_stepping_up=True,
+    )
+    assert score == 0
+    assert rating is None
+
+
+def test_ast_full_score_6():
+    """DvP rank 2 (+3) + form above avg (+1) + tracking rank 4 (+2) = 6 BEST."""
+    score, rating, signals, context = _score_player_ast(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_AST_ELITE,
+        recent_stats=RECENT_AST_ABOVE_AVG,
+        tracking_data=TRACKING_AST_GOOD,
+        is_stepping_up=True,
+    )
+    assert score == 6
+    assert rating == "BEST OF THE NIGHT"
+    assert signals["dvp"] == 3
+    assert signals["recent_form"] == 1
+    assert signals["potential_ast"] == 2
+    assert context["dvp_rank"] == 2
+    assert len(context["signal_descriptions"]) == 3
+
+
+def test_ast_fallback_tracking_none_rank_2():
+    """tracking=None, rank_ast=2 (top 3) -> +2 fallback."""
+    score, rating, signals, context = _score_player_ast(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_AST_TOP3,
+        recent_stats=RECENT_AST_ABOVE_AVG,
+        tracking_data=None,
+        is_stepping_up=True,
+    )
+    assert score == 6
+    assert signals["potential_ast"] == 2
+
+
+def test_ast_fallback_tracking_none_rank_4():
+    """tracking=None, rank_ast=4 (not top 3) -> no bonus, score=4."""
+    score, rating, signals, context = _score_player_ast(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_AST_RANK4,
+        recent_stats=RECENT_AST_ABOVE_AVG,
+        tracking_data=None,
+        is_stepping_up=True,
+    )
+    assert score == 4
+    assert signals.get("potential_ast", 0) == 0
+    assert rating == "VERY FAVORABLE"
