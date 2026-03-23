@@ -272,6 +272,10 @@ def get_player_recent_stats(player_id, last_n_games=15):
         return {}
 
     season_avg_pts = round(float(full_df["PTS"].mean()), 1)
+    season_avg_ast = round(float(full_df["AST"].mean()), 1)
+    season_avg_reb = round(float(full_df["REB"].mean()), 1)
+    season_avg_three_pm = round(float(full_df["FG3M"].mean()), 1)
+    season_avg_three_pa = round(float(full_df["FG3A"].mean()), 1)
     df = full_df.head(last_n_games)
 
     return {
@@ -279,8 +283,14 @@ def get_player_recent_stats(player_id, last_n_games=15):
         "reb": round(float(df["REB"].mean()), 1),
         "ast": round(float(df["AST"].mean()), 1),
         "min": round(float(df["MIN"].astype(float).mean()), 1),
+        "three_pm": round(float(df["FG3M"].mean()), 1),
+        "three_pa": round(float(df["FG3A"].mean()), 1),
         "games": len(df),
         "season_avg_pts": season_avg_pts,
+        "season_avg_ast": season_avg_ast,
+        "season_avg_reb": season_avg_reb,
+        "season_avg_three_pm": season_avg_three_pm,
+        "season_avg_three_pa": season_avg_three_pa,
     }
 
 

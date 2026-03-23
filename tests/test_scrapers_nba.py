@@ -5,7 +5,7 @@ try:
     from scrapers.nba import get_player_season_stats
 except ImportError:
     get_player_season_stats = None
-from scrapers.nba import get_conference_standings
+from scrapers.nba import get_conference_standings, get_player_recent_stats
 
 
 def _make_standings_df(rows):
@@ -171,3 +171,75 @@ def test_rounds_values_to_one_decimal():
 
     assert result[1]["min"] == 28.5
     assert result[1]["pts"] == 17.7
+
+
+# --------------- get_player_recent_stats tests ---------------
+
+def _make_gamelog_df(rows):
+    """
+    rows: list of dicts with keys PTS, REB, AST, MIN, FG3M, FG3A.
+    Returns a DataFrame resembling PlayerGameLog output.
+    """
+    return pd.DataFrame(rows)
+
+
+def test_get_player_recent_stats_returns_new_season_avg_fields():
+    """season_avg_ast, season_avg_reb, season_avg_three_pm, season_avg_three_pa
+    are computed from the FULL dataframe."""
+    full_games = [
+        {"PTS": 20, "REB": 8, "AST": 5, "MIN": 30, "FG3M": 3, "FG3A": 7},
+        {"PTS": 22, "REB": 10, "AST": 7, "MIN": 32, "FG3M": 1, "FG3A": 5},
+        {"PTS": 18, "REB": 6, "AST": 3, "MIN": 28, "FG3M": 2, "FG3A": 6},
+        {"PTS": 24, "REB": 12, "AST": 9, "MIN": 34, "FG3M": 4, "FG3A": 8},
+    ]
+    df = _make_gamelog_df(full_games)
+    mock_ep = MagicMock()
+    mock_ep.get_data_frames.return_value = [df]
+
+    with patch("scrapers.nba.playergamelog.PlayerGameLog", return_value=mock_ep), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        result = get_player_recent_stats(player_id=123, last_n_games=2)
+
+    # season averages over all 4 games
+    assert result["season_avg_pts"] == 21.0      # (20+22+18+24)/4
+    assert result["season_avg_ast"] == 6.0        # (5+7+3+9)/4
+    assert result["season_avg_reb"] == 9.0        # (8+10+6+12)/4
+    assert result["season_avg_three_pm"] == 2.5   # (3+1+2+4)/4
+    assert result["season_avg_three_pa"] == 6.5   # (7+5+6+8)/4
+
+
+def test_get_player_recent_stats_returns_last_n_three_pt_fields():
+    """three_pm and three_pa are computed from only the last_n games."""
+    full_games = [
+        {"PTS": 20, "REB": 8, "AST": 5, "MIN": 30, "FG3M": 3, "FG3A": 7},
+        {"PTS": 22, "REB": 10, "AST": 7, "MIN": 32, "FG3M": 1, "FG3A": 5},
+        {"PTS": 18, "REB": 6, "AST": 3, "MIN": 28, "FG3M": 2, "FG3A": 6},
+        {"PTS": 24, "REB": 12, "AST": 9, "MIN": 34, "FG3M": 4, "FG3A": 8},
+    ]
+    df = _make_gamelog_df(full_games)
+    mock_ep = MagicMock()
+    mock_ep.get_data_frames.return_value = [df]
+
+    with patch("scrapers.nba.playergamelog.PlayerGameLog", return_value=mock_ep), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        result = get_player_recent_stats(player_id=123, last_n_games=2)
+
+    # last_n=2 → first 2 rows (head(2))
+    assert result["three_pm"] == 2.0   # (3+1)/2
+    assert result["three_pa"] == 6.0   # (7+5)/2
+
+
+def test_get_player_recent_stats_empty_df_returns_empty_dict():
+    """Empty gamelog should return {}."""
+    df = pd.DataFrame()
+    mock_ep = MagicMock()
+    mock_ep.get_data_frames.return_value = [df]
+
+    with patch("scrapers.nba.playergamelog.PlayerGameLog", return_value=mock_ep), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        result = get_player_recent_stats(player_id=999, last_n_games=10)
+
+    assert result == {}
