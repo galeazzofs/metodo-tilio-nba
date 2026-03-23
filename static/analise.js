@@ -104,6 +104,13 @@ function esc(s) {
 }
 
 // ── renderizar resultados ──────────────────────────────────────────────────
+const STAT_SECTIONS = [
+  { key: 'pts', title: 'PONTOS', icon: '📊', abbr: 'PTS' },
+  { key: 'ast', title: 'ASSISTÊNCIAS', icon: '🎯', abbr: 'AST' },
+  { key: 'reb', title: 'REBOTES', icon: '🏀', abbr: 'REB' },
+  { key: 'three_pt', title: 'CESTAS DE 3', icon: '💧', abbr: '3PT' },
+];
+
 const GROUPS = [
   { key: 'BEST OF THE NIGHT', label: 'Melhor da Noite',    icon: '◈', css: 'best', tagLabel: '★ MELHOR DA NOITE' },
   { key: 'VERY FAVORABLE',    label: 'Muito Favorável',    icon: '◎', css: 'very', tagLabel: '↑↑ MUITO FAVORÁVEL' },
@@ -113,7 +120,35 @@ const GROUPS = [
 const COLOR    = { best: 'var(--gold)', very: 'var(--purple)', fav: 'var(--green)' };
 const COUNT_BG = { best: 'var(--gold-dim)', very: 'var(--purple-dim)', fav: 'var(--green-dim)' };
 
-function renderResults(results) {
+function renderResults(data) {
+  const wrap = document.getElementById('results');
+  if (!data) { wrap.innerHTML = ''; return; }
+
+  // Backward compat: old format is array
+  if (Array.isArray(data)) { renderResultsLegacy(data); return; }
+
+  // New format: object with stat keys (pts, ast, reb, three_pt)
+  let html = '<div class="results-divider"></div>';
+
+  for (const sec of STAT_SECTIONS) {
+    const candidates = data[sec.key] || [];
+    html += `<div class="stat-section">`;
+    html += `<h2 class="stat-section-title">${sec.icon} ${sec.title} (${sec.abbr})</h2>`;
+
+    if (candidates.length === 0) {
+      html += `<p class="muted" style="opacity:0.5;font-size:0.9rem;">Nenhuma oportunidade identificada hoje</p>`;
+    } else {
+      for (const p of candidates) {
+        html += buildStatCard(p, sec.key);
+      }
+    }
+    html += `</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+function renderResultsLegacy(results) {
   const el = document.getElementById('results');
 
   if (!results || results.length === 0) {
@@ -157,6 +192,77 @@ function renderResults(results) {
   });
 
   el.innerHTML = html;
+}
+
+function buildStatCard(p, statKey) {
+  const name = p.player_name || p.player || 'Desconhecido';
+  const rating = p.rating || 'fav';
+  const ratingColor = COLOR[rating] || '#888';
+  const ratingBg = COUNT_BG[rating] || 'rgba(136,136,136,0.1)';
+
+  // Resolve line value from various formats
+  const lineVal = p.line && p.line.value ? p.line.value : (typeof p.line === 'number' ? p.line : null);
+
+  // Signals from context or flat array
+  const signals = p.context?.signal_descriptions || (Array.isArray(p.signals) ? p.signals : []);
+
+  // Starter out info
+  const starterOut = p.context?.starter_out || (p.replaces ? p.replaces.join(', ') : '');
+
+  // Build signal HTML
+  const signalsHtml = signals.map(s =>
+    `<div class="signal"><span class="sig-arrow">›</span><span>${esc(s)}</span></div>`
+  ).join('');
+
+  // Recent stats — highlight the relevant stat for this section
+  const STAT_KEY_MAP = { pts: 'pts', ast: 'ast', reb: 'reb', three_pt: 'fg3m' };
+  const STAT_LABEL_MAP = { pts: 'PTS', ast: 'AST', reb: 'REB', three_pt: '3PT' };
+  let statsHtml = '';
+  if (p.recent_stats) {
+    const rs = p.recent_stats;
+    const highlight = STAT_KEY_MAP[statKey] || statKey;
+    const highlightLabel = STAT_LABEL_MAP[statKey] || statKey.toUpperCase();
+    statsHtml = `<div class="stats">`;
+    // Highlighted stat first
+    if (rs[highlight] != null) {
+      statsHtml += statCell(rs[highlight], highlightLabel);
+    }
+    // Then other common stats
+    if (statKey !== 'pts' && rs.pts != null) statsHtml += statCell(rs.pts, 'PTS');
+    if (statKey !== 'reb' && rs.reb != null) statsHtml += statCell(rs.reb, 'REB');
+    if (statKey !== 'ast' && rs.ast != null) statsHtml += statCell(rs.ast, 'AST');
+    if (rs.min != null) statsHtml += statCell(rs.min, 'MIN');
+    if (rs.games != null) statsHtml += statCell(rs.games + 'j', 'AMOSTRA');
+    statsHtml += `</div>`;
+  }
+
+  // Rating tag
+  const ratingLabels = { best: '★ MELHOR DA NOITE', very: '↑↑ MUITO FAVORÁVEL', fav: '↑ FAVORÁVEL' };
+  const tagLabel = ratingLabels[rating] || rating.toUpperCase();
+
+  const lineDisplay = lineVal != null
+    ? `<span class="line-value">${lineVal}</span>`
+    : `<span class="line-na">N/A</span>`;
+
+  return `
+    <div class="card card-${rating}">
+      <div class="card-head">
+        <div>
+          <div class="player-name">${esc(name)}</div>
+          <div class="player-sub">
+            ${p.position ? `<span class="pos-tag pos-${rating}">${esc(p.position)}</span>` : ''}
+            <span class="card-meta">${esc(p.team || '')} ${p.game ? '&middot; ' + esc(p.game) : ''}</span>
+            ${starterOut ? `<span class="card-meta" style="color:var(--amber)">⚠ Titular fora: ${esc(starterOut)}</span>` : ''}
+          </div>
+        </div>
+        <div class="card-head-right">
+          <span class="rating-tag tag-${rating}">${esc(tagLabel)}</span>
+          <span class="line-label">Linha: ${lineDisplay}</span>
+        </div>
+      </div>
+      <div class="signals">${signalsHtml}</div>
+      ${statsHtml}
+    </div>`;
 }
 
 function buildCard(p, g) {
@@ -291,30 +397,65 @@ function buildHistEntry(analysis) {
   const trigger     = analysis.triggered_by === 'manual' ? 'manual' : 'auto';
   const badgeCss    = trigger === 'auto' ? 'hist-badge-auto' : 'hist-badge-manual';
   const badgeTxt    = trigger === 'auto' ? '⚡ Auto' : '▶ Manual';
+  const id          = `hist-${analysis.date}`;
 
-  const chips = (analysis.results || []).map(p => {
-    const css = HIST_CSS[p.rating] || 'hist-chip-fav';
-    return `<span class="hist-cand-chip ${css}">${esc(p.player)}</span>`;
-  }).join('');
+  const isNewFormat = analysis.stats && typeof analysis.stats === 'object' && !Array.isArray(analysis.stats);
 
-  const cards = (analysis.results || []).map(p => {
-    const g = GROUPS.find(g => g.key === p.rating) || GROUPS[2];
-    return buildCard(p, g);
-  }).join('');
+  let chipsHtml = '';
+  let bodyHtml  = '';
+  let candidateCount = 0;
 
-  const id = `hist-${analysis.date}`;
+  if (isNewFormat) {
+    // New format: stats grouped by stat key
+    for (const sec of STAT_SECTIONS) {
+      const candidates = analysis.stats[sec.key] || [];
+      candidateCount += candidates.length;
+      for (const c of candidates) {
+        const name = c.player_name || c.player || '?';
+        const rating = c.rating || 'fav';
+        const color = COLOR[rating] || '#888';
+        chipsHtml += `<span class="hist-cand-chip" style="border:1px solid ${color};color:${color};background:rgba(255,255,255,0.03)">${sec.icon} ${esc(name)}</span> `;
+      }
+    }
+
+    // Body: stat-grouped cards
+    for (const sec of STAT_SECTIONS) {
+      const candidates = analysis.stats[sec.key] || [];
+      if (candidates.length === 0) continue;
+      bodyHtml += `<h3 class="stat-section-title" style="font-size:0.95rem;margin-top:0.8rem;">${sec.icon} ${sec.title}</h3>`;
+      for (const c of candidates) {
+        bodyHtml += buildStatCard(c, sec.key);
+      }
+    }
+
+    if (analysis.candidate_count != null) candidateCount = analysis.candidate_count;
+  } else {
+    // Legacy format: use analysis.results
+    const results = analysis.results || [];
+    candidateCount = results.length;
+
+    chipsHtml = results.map(p => {
+      const css = HIST_CSS[p.rating] || 'hist-chip-fav';
+      return `<span class="hist-cand-chip ${css}">${esc(p.player)}</span>`;
+    }).join('');
+
+    bodyHtml = results.map(p => {
+      const g = GROUPS.find(g => g.key === p.rating) || GROUPS[2];
+      return buildCard(p, g);
+    }).join('');
+  }
 
   return `
     <div class="hist-entry" id="${id}">
       <div class="hist-entry-head" onclick="toggleHistEntry('${id}')">
         <span class="hist-date">${dateDisplay}</span>
         <span class="hist-games">${analysis.game_count || '?'} jogos</span>
-        <div class="hist-candidates">${chips}</div>
+        <div class="hist-candidates">${chipsHtml}</div>
         <span class="hist-trigger-badge ${badgeCss}">${badgeTxt}</span>
         <span class="hist-chevron" id="${id}-chevron">▾</span>
       </div>
       <div class="hist-body" id="${id}-body">
-        ${cards || '<div class="hist-empty">Sem candidatos neste dia.</div>'}
+        ${bodyHtml || '<div class="hist-empty">Sem candidatos neste dia.</div>'}
       </div>
     </div>`;
 }
