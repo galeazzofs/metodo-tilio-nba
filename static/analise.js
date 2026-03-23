@@ -226,6 +226,9 @@ async function loadHistory() {
   }
 }
 
+const HIST_PAGE_SIZE = 7;
+let histShowCount = HIST_PAGE_SIZE;
+
 function renderHistory(analyses) {
   // Remove seção anterior se existir
   const old = document.getElementById('histSection');
@@ -236,20 +239,51 @@ function renderHistory(analyses) {
 
   if (!analyses || analyses.length === 0) return;
 
+  // Ordenar por data decrescente (mais recente primeiro)
+  const sorted = [...analyses].sort((a, b) => b.date.localeCompare(a.date));
+
+  histShowCount = HIST_PAGE_SIZE;
+
   const section = document.createElement('div');
   section.id = 'histSection';
   section.className = 'hist-section';
 
+  const visible = sorted.slice(0, histShowCount);
+  const hasMore = sorted.length > histShowCount;
+
   section.innerHTML = `
     <div class="hist-header">
       <span class="hist-title">Histórico</span>
-      <span class="hist-count">${analyses.length} dia(s) com jogadas</span>
+      <span class="hist-count">${sorted.length} dia(s) com jogadas</span>
     </div>
     <div id="histList">
-      ${analyses.map(a => buildHistEntry(a)).join('')}
-    </div>`;
+      ${visible.map(a => buildHistEntry(a)).join('')}
+    </div>
+    ${hasMore ? `<button class="hist-more-btn" id="histMoreBtn" onclick="showMoreHistory()">Mostrar mais (${sorted.length - histShowCount} restantes)</button>` : ''}`;
+
+  // Store sorted data for pagination
+  section._allAnalyses = sorted;
 
   resultsEl.insertAdjacentElement('afterend', section);
+}
+
+function showMoreHistory() {
+  const section = document.getElementById('histSection');
+  if (!section || !section._allAnalyses) return;
+
+  const sorted = section._allAnalyses;
+  histShowCount += HIST_PAGE_SIZE;
+
+  const list = document.getElementById('histList');
+  const visible = sorted.slice(histShowCount - HIST_PAGE_SIZE, histShowCount);
+  visible.forEach(a => { list.insertAdjacentHTML('beforeend', buildHistEntry(a)); });
+
+  const btn = document.getElementById('histMoreBtn');
+  if (histShowCount >= sorted.length) {
+    if (btn) btn.remove();
+  } else if (btn) {
+    btn.textContent = `Mostrar mais (${sorted.length - histShowCount} restantes)`;
+  }
 }
 
 function buildHistEntry(analysis) {
