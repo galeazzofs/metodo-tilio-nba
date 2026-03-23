@@ -554,9 +554,10 @@ def _dedup_candidates(candidates):
 # Main analysis
 # ---------------------------------------------------------------------------
 
-def run_analysis(games, lineups, dvp):
+def run_analysis(games, lineups, dvp, team_defense, tracking_data):
     """
-    Returns up to 5 players -one per game -ranked by score.
+    Returns {"pts": [...], "ast": [...], "reb": [...], "three_pt": [...]}.
+    Each bucket contains up to 5 candidates, deduplicated across stats.
     """
     print("  Fetching team defensive zone data...")
     all_defense_zones = get_all_teams_defense_zones()
@@ -570,12 +571,11 @@ def run_analysis(games, lineups, dvp):
         tricode_to_team_id[game["home_tricode"]] = game["home_team_id"]
         tricode_to_team_id[game["away_tricode"]] = game["away_team_id"]
 
-    # Collect all scored candidates, grouped by game
-    candidates_by_game = {}
+    # Collect all scored candidates across 4 stat categories
+    all_candidates = {"pts": [], "ast": [], "reb": [], "three_pt": []}
 
     for game in games:
         game_label = f"{game['away_tricode']} @ {game['home_tricode']}"
-        candidates_by_game[game_label] = []
 
         for player_tricode, opponent_tricode in [
             (game["home_tricode"], game["away_tricode"]),
@@ -639,36 +639,103 @@ def run_analysis(games, lineups, dvp):
                     print(f"    [error] {e} - skipping {player_name}")
                     continue
 
-                score, rating, signals = _score_player(
+                replaces_list = [s["name"] for s in matched_starters]
+
+                # --- PTS scoring ---
+                pts_score, pts_rating, pts_signals_list = _score_player(
                     position=position,
                     opponent_name=opponent_name,
                     dvp=dvp,
                     recent_stats=recent_stats,
                     player_zones=player_zones,
                     opponent_defense_zones=opponent_defense_zones,
-                    is_stepping_up=True,  # always True: bench player on injured team
+                    is_stepping_up=True,
                 )
 
-                if rating:
-                    candidates_by_game[game_label].append({
-                        "player": player_name,
+                if pts_rating:
+                    dvp_rank, _ = _best_dvp_rank(position, opponent_name, dvp)
+                    pts_signals_dict = {
+                        "dvp": 3,
+                        "recent_form": 1 if any("forma recente" in s.lower() or "above" in s.lower() for s in pts_signals_list) else 0,
+                        "zone_match": 2 if any("zone match" in s.lower() for s in pts_signals_list) else 0,
+                    }
+                    pts_context = {
+                        "dvp_rank": dvp_rank,
+                        "signal_descriptions": pts_signals_list,
+                        "starter_out": replaces_list[0] if replaces_list else None,
+                    }
+                    all_candidates["pts"].append({
+                        "player_name": player_name,
+                        "player_id": player_id,
                         "team": team_data["team_name"],
                         "position": position,
                         "game": game_label,
-                        "score": score,
-                        "rating": rating,
-                        "signals": signals,
+                        "score": pts_score,
+                        "rating": pts_rating,
+                        "signals": pts_signals_dict,
+                        "context": pts_context,
                         "recent_stats": recent_stats,
-                        "primary_zone": _get_primary_zone(player_zones),
-                        "replaces": [s["name"] for s in matched_starters],
+                        "replaces": replaces_list,
                     })
 
-    # One best player per game → top 5 overall
-    top_per_game = []
-    for game_label, players in candidates_by_game.items():
-        if players:
-            best = max(players, key=lambda x: x["score"])
-            top_per_game.append(best)
+                # --- AST scoring ---
+                ast_score, ast_rating, ast_signals, ast_context = _score_player_ast(
+                    position, opponent_name, team_defense, recent_stats, tracking_data, True,
+                )
+                if ast_rating:
+                    ast_context["starter_out"] = replaces_list[0] if replaces_list else None
+                    all_candidates["ast"].append({
+                        "player_name": player_name,
+                        "player_id": player_id,
+                        "team": team_data["team_name"],
+                        "position": position,
+                        "game": game_label,
+                        "score": ast_score,
+                        "rating": ast_rating,
+                        "signals": ast_signals,
+                        "context": ast_context,
+                        "recent_stats": recent_stats,
+                        "replaces": replaces_list,
+                    })
 
-    top_per_game.sort(key=lambda x: x["score"], reverse=True)
-    return top_per_game[:5]
+                # --- REB scoring ---
+                reb_score, reb_rating, reb_signals, reb_context = _score_player_reb(
+                    position, opponent_name, team_defense, recent_stats, tracking_data, True,
+                )
+                if reb_rating:
+                    reb_context["starter_out"] = replaces_list[0] if replaces_list else None
+                    all_candidates["reb"].append({
+                        "player_name": player_name,
+                        "player_id": player_id,
+                        "team": team_data["team_name"],
+                        "position": position,
+                        "game": game_label,
+                        "score": reb_score,
+                        "rating": reb_rating,
+                        "signals": reb_signals,
+                        "context": reb_context,
+                        "recent_stats": recent_stats,
+                        "replaces": replaces_list,
+                    })
+
+                # --- 3PT scoring ---
+                three_score, three_rating, three_signals, three_context = _score_player_3pt(
+                    position, opponent_name, team_defense, recent_stats, tracking_data, True,
+                )
+                if three_rating:
+                    three_context["starter_out"] = replaces_list[0] if replaces_list else None
+                    all_candidates["three_pt"].append({
+                        "player_name": player_name,
+                        "player_id": player_id,
+                        "team": team_data["team_name"],
+                        "position": position,
+                        "game": game_label,
+                        "score": three_score,
+                        "rating": three_rating,
+                        "signals": three_signals,
+                        "context": three_context,
+                        "recent_stats": recent_stats,
+                        "replaces": replaces_list,
+                    })
+
+    return _dedup_candidates(all_candidates)

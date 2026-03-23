@@ -267,10 +267,11 @@ def test_run_analysis_wiring_no_type_error():
          patch("analysis.engine._find_player_id", return_value=9999), \
          patch("analysis.engine.get_player_recent_stats", return_value={"pts": 15.0, "min": 22.0, "games": 15}), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
-        result = run_analysis(games, lineups, dvp)
+        result = run_analysis(games, lineups, dvp, {}, None)
 
     # No TypeError = wiring is correct. Result may be empty (dvp={} means no DvP match).
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
+    assert set(result.keys()) == {"pts", "ast", "reb", "three_pt"}
 
 
 # ---------------------------------------------------------------------------
@@ -608,11 +609,12 @@ def test_run_analysis_position_gate_compatible_starter_out_yields_candidate():
          patch("analysis.engine._find_player_id", side_effect=lambda name: 8888 if "Star" in name else 9999), \
          patch("analysis.engine.get_player_recent_stats", return_value={"pts": 15.0, "season_avg_pts": 10.0, "min": 22.0, "games": 15}), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
-        result = run_analysis(games, lineups, dvp)
+        result = run_analysis(games, lineups, dvp, {}, None)
     # Gate did not crash and did not wrongly exclude a compatible candidate
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
+    assert set(result.keys()) == {"pts", "ast", "reb", "three_pt"}
     # With rank-1 DVP and recent pts above season avg, the candidate should score >= 4
-    assert len(result) > 0, "Compatible PG candidate with elite DVP should not be excluded by position gate"
+    assert len(result["pts"]) > 0, "Compatible PG candidate with elite DVP should not be excluded by position gate"
 
 
 def test_run_analysis_position_gate_incompatible_starter_out_excludes_candidate():
@@ -634,8 +636,9 @@ def test_run_analysis_position_gate_incompatible_starter_out_excludes_candidate(
          patch("analysis.engine._find_player_id", side_effect=lambda name: 8888 if "Star" in name else 9999), \
          patch("analysis.engine.get_player_recent_stats", return_value={"pts": 15.0, "season_avg_pts": 10.0, "min": 22.0, "games": 15}), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
-        result = run_analysis(games, lineups, dvp)
-    assert result == []  # PG cannot replace a C — must be excluded
+        result = run_analysis(games, lineups, dvp, {}, None)
+    # PG cannot replace a C — must be excluded; all buckets empty
+    assert all(len(v) == 0 for v in result.values())
 
 
 def test_run_analysis_replaces_field_contains_only_matched_starters():
@@ -667,11 +670,11 @@ def test_run_analysis_replaces_field_contains_only_matched_starters():
              "pts": 20.0, "season_avg_pts": 10.0, "min": 28.0, "games": 15
          }), \
          patch("analysis.engine.get_player_shot_zones", return_value={}):
-        result = run_analysis(games, lineups, dvp)
+        result = run_analysis(games, lineups, dvp, {}, None)
 
-    assert result, "Expected non-empty result: SG candidate with rank-1 DVP vs TeamB should score >= 4 (VERY FAVORABLE)"
-    assert result[0]["replaces"] == ["Star PG"]
-    assert "Star C" not in result[0]["replaces"]
+    assert result["pts"], "Expected non-empty PTS result: SG candidate with rank-1 DVP vs TeamB should score >= 4 (VERY FAVORABLE)"
+    assert result["pts"][0]["replaces"] == ["Star PG"]
+    assert "Star C" not in result["pts"][0]["replaces"]
 
 
 # ---------------------------------------------------------------------------
@@ -1062,3 +1065,16 @@ def test_dedup_player_in_3_stats_stays_in_best():
     assert not any(p["player_name"] == "Eve" for p in result["pts"])
     assert any(p["player_name"] == "Eve" for p in result["ast"])
     assert not any(p["player_name"] == "Eve" for p in result["reb"])
+
+
+# ---------------------------------------------------------------------------
+# run_analysis — returns 4-stat dict
+# ---------------------------------------------------------------------------
+
+def test_run_analysis_returns_stat_dict():
+    """run_analysis should return dict with pts/ast/reb/three_pt keys."""
+    with patch("analysis.engine.get_all_teams_defense_zones", return_value={}), \
+         patch("analysis.engine.get_player_season_data", return_value=({}, set())):
+        result = run_analysis([], {}, {}, {}, None)
+    assert isinstance(result, dict)
+    assert set(result.keys()) == {"pts", "ast", "reb", "three_pt"}
