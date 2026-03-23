@@ -426,6 +426,74 @@ def _score_player_reb(position, opponent_name, team_defense, recent_stats, track
     return score, rating, signals, context
 
 
+def _score_player_3pt(position, opponent_name, team_defense, recent_stats, tracking_data, is_stepping_up):
+    """
+    Score a player's 3-point upside (0-6 scale).
+    Returns (score, rating, signals_dict, context_dict).
+    """
+    if not is_stepping_up:
+        return 0, None, {}, {}
+
+    pos_def = team_defense.get(position, {})
+    dvp_rank = pos_def.get("rank_three_pm")
+
+    score = 0
+    signals = {}
+    descriptions = []
+
+    # --- Signal 1: DvP 3PM rank (0 or 3 pts) ---
+    if dvp_rank is None or dvp_rank > 6:
+        return 0, None, {}, {}
+
+    score += 3
+    signals["dvp"] = 3
+    descriptions.append(f"Elite 3PT matchup vs {opponent_name} (DvP #{dvp_rank})")
+
+    # --- Signal 2: Recent form (0 or 1 pt) ---
+    three_pm_recent = recent_stats.get("three_pm", 0)
+    season_avg_three_pm = recent_stats.get("season_avg_three_pm", 0)
+    if three_pm_recent >= season_avg_three_pm:
+        score += 1
+        signals["recent_form"] = 1
+        descriptions.append(f"3PT form above avg ({three_pm_recent} vs {season_avg_three_pm} season)")
+    else:
+        signals["recent_form"] = 0
+
+    # --- Signal 3: 3PT potential (0 or 2 pts) ---
+    # Requires volume up: three_pa >= season_avg_three_pa
+    three_pa = recent_stats.get("three_pa", 0)
+    season_avg_three_pa = recent_stats.get("season_avg_three_pa", 0)
+    volume_up = three_pa >= season_avg_three_pa
+
+    rank_three_pa = pos_def.get("rank_three_pa", 99)
+    three_bonus = 0
+
+    if volume_up:
+        if tracking_data is not None and rank_three_pa <= 6:
+            three_bonus = 2
+            descriptions.append(f"Volume up ({three_pa} 3PA) + opponent allows 3PA (rank {rank_three_pa})")
+        elif tracking_data is None and rank_three_pa <= 3:
+            three_bonus = 2
+            descriptions.append(f"Fallback: volume up ({three_pa} 3PA) + top-3 opponent 3PA rank ({rank_three_pa})")
+
+    if three_bonus:
+        score += three_bonus
+        signals["potential_3pt"] = three_bonus
+    else:
+        signals["potential_3pt"] = 0
+
+    # --- Rating ---
+    if score >= 6:
+        rating = "BEST OF THE NIGHT"
+    elif score >= 4:
+        rating = "VERY FAVORABLE"
+    else:
+        rating = None
+
+    context = {"dvp_rank": dvp_rank, "signal_descriptions": descriptions}
+    return score, rating, signals, context
+
+
 # ---------------------------------------------------------------------------
 # Main analysis
 # ---------------------------------------------------------------------------
