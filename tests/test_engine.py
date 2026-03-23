@@ -5,7 +5,7 @@ import sys
 from analysis.engine import (
     _score_player, run_analysis, _position_compatible, _team_has_stake,
     filter_games_by_stake, _ordinal, _score_player_ast, _score_player_reb,
-    _score_player_3pt,
+    _score_player_3pt, _dedup_candidates,
 )
 
 # ---------------------------------------------------------------------------
@@ -988,3 +988,77 @@ def test_3pt_rank_pa_4_no_fallback():
     )
     assert signals.get("potential_3pt", 0) == 0
     assert score == 4
+
+
+# ---------------------------------------------------------------------------
+# _dedup_candidates
+# ---------------------------------------------------------------------------
+
+def _c(name, game, score):
+    """Shorthand to create a candidate dict."""
+    return {"player_name": name, "game": game, "score": score}
+
+
+def test_dedup_player_in_pts_and_ast_stays_in_best():
+    """Player in PTS (5) and AST (6) -> stays in AST only."""
+    candidates = {
+        "pts": [_c("Alice", "G1", 5)],
+        "ast": [_c("Alice", "G1", 6)],
+        "reb": [],
+        "three_pt": [],
+    }
+    result = _dedup_candidates(candidates)
+    assert not any(p["player_name"] == "Alice" for p in result["pts"])
+    assert any(p["player_name"] == "Alice" for p in result["ast"])
+
+
+def test_dedup_tie_score_stays_in_higher_priority():
+    """Tie score 5 in PTS and AST -> stays in PTS (priority 0 < 2)."""
+    candidates = {
+        "pts": [_c("Bob", "G1", 5)],
+        "ast": [_c("Bob", "G1", 5)],
+        "reb": [],
+        "three_pt": [],
+    }
+    result = _dedup_candidates(candidates)
+    assert any(p["player_name"] == "Bob" for p in result["pts"])
+    assert not any(p["player_name"] == "Bob" for p in result["ast"])
+
+
+def test_dedup_two_players_same_game_only_highest():
+    """Two players same game in PTS -> only highest stays."""
+    candidates = {
+        "pts": [_c("Carol", "G1", 6), _c("Dave", "G1", 4)],
+        "ast": [],
+        "reb": [],
+        "three_pt": [],
+    }
+    result = _dedup_candidates(candidates)
+    assert len([p for p in result["pts"] if p["game"] == "G1"]) == 1
+    assert result["pts"][0]["player_name"] == "Carol"
+
+
+def test_dedup_max_5_per_stat():
+    """8 players in PTS -> only 5 kept."""
+    candidates = {
+        "pts": [_c(f"P{i}", f"G{i}", 6 - i % 3) for i in range(8)],
+        "ast": [],
+        "reb": [],
+        "three_pt": [],
+    }
+    result = _dedup_candidates(candidates)
+    assert len(result["pts"]) <= 5
+
+
+def test_dedup_player_in_3_stats_stays_in_best():
+    """Player in PTS (3), AST (5), REB (4) -> stays in AST only."""
+    candidates = {
+        "pts": [_c("Eve", "G1", 3)],
+        "ast": [_c("Eve", "G1", 5)],
+        "reb": [_c("Eve", "G1", 4)],
+        "three_pt": [],
+    }
+    result = _dedup_candidates(candidates)
+    assert not any(p["player_name"] == "Eve" for p in result["pts"])
+    assert any(p["player_name"] == "Eve" for p in result["ast"])
+    assert not any(p["player_name"] == "Eve" for p in result["reb"])

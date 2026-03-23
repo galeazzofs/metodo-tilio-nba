@@ -495,6 +495,62 @@ def _score_player_3pt(position, opponent_name, team_defense, recent_stats, track
 
 
 # ---------------------------------------------------------------------------
+# Multi-stat deduplication
+# ---------------------------------------------------------------------------
+
+STAT_PRIORITY = {"pts": 0, "three_pt": 1, "ast": 2, "reb": 3}
+
+
+def _dedup_candidates(candidates):
+    """
+    Deduplicate candidates across stat categories.
+
+    1. Find best stat for each player (highest score; tiebreaker: STAT_PRIORITY, lower wins).
+    2. Keep player only in their best stat.
+    3. Per stat: sort by score desc, max 1 per game, take top 5.
+
+    Input:  {"pts": [...], "ast": [...], "reb": [...], "three_pt": [...]}
+    Output: same structure, deduplicated.
+    """
+    # Step 1: Find best stat for each player
+    player_best = {}  # player_name -> (score, priority, stat_key)
+    for stat_key, entries in candidates.items():
+        priority = STAT_PRIORITY.get(stat_key, 99)
+        for entry in entries:
+            name = entry["player_name"]
+            score = entry["score"]
+            current = player_best.get(name)
+            if current is None:
+                player_best[name] = (score, priority, stat_key)
+            else:
+                cur_score, cur_priority, _ = current
+                if score > cur_score or (score == cur_score and priority < cur_priority):
+                    player_best[name] = (score, priority, stat_key)
+
+    # Step 2: Keep player only in their best stat
+    filtered = {}
+    for stat_key in candidates:
+        filtered[stat_key] = [
+            entry for entry in candidates[stat_key]
+            if player_best[entry["player_name"]][2] == stat_key
+        ]
+
+    # Step 3: Per stat — sort by score desc, max 1 per game, take top 5
+    result = {}
+    for stat_key, entries in filtered.items():
+        sorted_entries = sorted(entries, key=lambda x: x["score"], reverse=True)
+        seen_games = set()
+        deduped = []
+        for entry in sorted_entries:
+            if entry["game"] not in seen_games:
+                seen_games.add(entry["game"])
+                deduped.append(entry)
+        result[stat_key] = deduped[:5]
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Main analysis
 # ---------------------------------------------------------------------------
 
