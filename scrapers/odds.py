@@ -95,28 +95,57 @@ def get_event_ids(games):
     return result
 
 
-def get_player_lines(candidates, event_ids):
-    """
-    Fetches the consensus points over/under line for each candidate.
+MARKET_TO_STAT = {
+    "player_points": "pts",
+    "player_assists": "ast",
+    "player_rebounds": "reb",
+    "player_threes": "three_pt",
+}
 
-    Returns {player_name: line_value}.
-    Players not found in any bookmaker's props are omitted (shown as N/A).
-    Returns {} on any HTTP error or quota exhaustion.
+ALL_MARKETS = ",".join(MARKET_TO_STAT.keys())
+
+STAT_KEYS = list(MARKET_TO_STAT.values())
+
+
+def get_player_lines(stats, event_ids):
+    """
+    Fetches consensus over/under lines for points, assists, rebounds, and threes.
+
+    Parameters
+    ----------
+    stats : dict
+        {"pts": [...], "ast": [...], "reb": [...], "three_pt": [...]}
+        Each entry has "player_name" and "game" keys.
+    event_ids : dict
+        {(away_tricode, home_tricode): event_id}
+
+    Returns
+    -------
+    dict
+        {player_name: {"pts": val, "pts_odds": price, "ast": val, "ast_odds": price,
+                        "reb": val, "reb_odds": price, "three_pt": val, "three_pt_odds": price}}
+        val/price is None when the market is unavailable for that player.
     """
     api_key = _get_api_key()
     if not api_key:
         return {}
 
-    # Group candidates by game to deduplicate API calls
+    # Build game-to-players mapping from all stat arrays
     games_to_players = {}
-    for c in candidates:
-        game_str = c["game"]  # e.g. "BOS @ OKC"
-        games_to_players.setdefault(game_str, []).append(c["player"])
+    for stat_key, entries in stats.items():
+        for entry in entries:
+            game_str = entry.get("game", "")
+            player_name = entry.get("player_name", "")
+            if game_str and player_name:
+                games_to_players.setdefault(game_str, set()).add(player_name)
 
     result = {}
 
     for game_str, player_names in games_to_players.items():
-        away_tc, home_tc = game_str.split(" @ ")
+        parts = game_str.split(" @ ")
+        if len(parts) != 2:
+            continue
+        away_tc, home_tc = parts
         event_id = event_ids.get((away_tc, home_tc))
         if not event_id:
             continue
@@ -127,7 +156,7 @@ def get_player_lines(candidates, event_ids):
                 params={
                     "apiKey": api_key,
                     "regions": "eu",
-                    "markets": "player_points",
+                    "markets": ALL_MARKETS,
                 },
                 timeout=10,
             )
@@ -142,29 +171,50 @@ def get_player_lines(candidates, event_ids):
         data = resp.json()
         bookmakers = data.get("bookmakers", [])
 
-        # Collect lines per player across all bookmakers
-        player_values = {name: [] for name in player_names}
+        # Collect lines per player per stat across all bookmakers
+        # {player: {stat_key: [(point, price), ...]}}
+        player_values = {name: {s: [] for s in STAT_KEYS} for name in player_names}
 
         for bookmaker in bookmakers:
             for market in bookmaker.get("markets", []):
-                if market.get("key") != "player_points":
+                market_key = market.get("key", "")
+                stat_key = MARKET_TO_STAT.get(market_key)
+                if stat_key is None:
                     continue
                 for outcome in market.get("outcomes", []):
                     desc = outcome.get("description", "")
                     point = outcome.get("point")
                     if point is None:
                         continue
+                    # Only consider "Over" outcomes to avoid duplicating lines
+                    if outcome.get("name", "").lower() != "over":
+                        continue
+                    price = outcome.get("price")
                     for name in player_names:
                         if name.lower() in desc.lower():
-                            player_values[name].append(float(point))
+                            player_values[name][stat_key].append(
+                                (float(point), price)
+                            )
 
-        for name, values in player_values.items():
-            if not values:
-                continue
-            modes = statistics.multimode(values)
-            if len(modes) == 1:
-                result[name] = modes[0]
-            else:
-                result[name] = statistics.median(values)
+        for name, stat_map in player_values.items():
+            if name not in result:
+                result[name] = {s: None for s in STAT_KEYS}
+                for s in STAT_KEYS:
+                    result[name][f"{s}_odds"] = None
+
+            for stat_key, pairs in stat_map.items():
+                if not pairs:
+                    continue
+                points = [p for p, _ in pairs]
+                prices = [pr for _, pr in pairs if pr is not None]
+
+                modes = statistics.multimode(points)
+                consensus_line = modes[0] if len(modes) == 1 else statistics.median(points)
+                result[name][stat_key] = consensus_line
+
+                if prices:
+                    result[name][f"{stat_key}_odds"] = round(
+                        statistics.median(prices), 2
+                    )
 
     return result
