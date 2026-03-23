@@ -5,7 +5,7 @@ try:
     from scrapers.nba import get_player_season_stats
 except ImportError:
     get_player_season_stats = None
-from scrapers.nba import get_conference_standings, get_player_recent_stats, get_team_defense_vs_position
+from scrapers.nba import get_conference_standings, get_player_recent_stats, get_team_defense_vs_position, get_team_defense_tracking
 
 
 def _make_standings_df(rows):
@@ -349,3 +349,79 @@ def test_get_team_defense_vs_position_groups_player_rows_by_team():
     assert result[1]["PG"]["ast"] == 5.0
     # team1 avg REB = (8+12)/2 = 10.0
     assert result[1]["PG"]["reb"] == 10.0
+
+
+# --------------- get_team_defense_tracking tests ---------------
+
+def _make_passing_df(rows):
+    """rows: list of dicts with TEAM_ID, POTENTIAL_AST."""
+    return pd.DataFrame(rows)
+
+
+def _make_rebounding_df(rows):
+    """rows: list of dicts with TEAM_ID, REB_CHANCES."""
+    return pd.DataFrame(rows)
+
+
+def test_get_team_defense_tracking_happy_path():
+    """Valid DataFrames produce correct structure and ranks."""
+    passing_rows = [
+        {"TEAM_ID": 1, "POTENTIAL_AST": 50.0},
+        {"TEAM_ID": 2, "POTENTIAL_AST": 60.0},
+        {"TEAM_ID": 3, "POTENTIAL_AST": 55.0},
+    ]
+    rebounding_rows = [
+        {"TEAM_ID": 1, "REB_CHANCES": 40.0},
+        {"TEAM_ID": 2, "REB_CHANCES": 35.0},
+        {"TEAM_ID": 3, "REB_CHANCES": 45.0},
+    ]
+    passing_df = _make_passing_df(passing_rows)
+    rebounding_df = _make_rebounding_df(rebounding_rows)
+
+    mock_passing_ep = MagicMock()
+    mock_passing_ep.get_data_frames.return_value = [passing_df]
+
+    mock_rebounding_ep = MagicMock()
+    mock_rebounding_ep.get_data_frames.return_value = [rebounding_df]
+
+    def fake_league_dash(*args, **kwargs):
+        if kwargs.get("pt_measure_type") == "Passing":
+            return mock_passing_ep
+        return mock_rebounding_ep
+
+    with patch("scrapers.nba.leaguedashptstats.LeagueDashPtStats", side_effect=fake_league_dash), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        result = get_team_defense_tracking(last_n_games=15)
+
+    assert result is not None
+    assert 1 in result and 2 in result and 3 in result
+
+    # Check keys
+    expected_keys = {"potential_ast", "reb_chances", "rank_potential_ast", "rank_reb_chances"}
+    assert set(result[1].keys()) == expected_keys
+
+    # Check values
+    assert result[2]["potential_ast"] == 60.0
+    assert result[3]["reb_chances"] == 45.0
+
+    # Ranks: rank 1 = highest value
+    # POTENTIAL_AST: team2=60 (rank1), team3=55 (rank2), team1=50 (rank3)
+    assert result[2]["rank_potential_ast"] == 1
+    assert result[3]["rank_potential_ast"] == 2
+    assert result[1]["rank_potential_ast"] == 3
+
+    # REB_CHANCES: team3=45 (rank1), team1=40 (rank2), team2=35 (rank3)
+    assert result[3]["rank_reb_chances"] == 1
+    assert result[1]["rank_reb_chances"] == 2
+    assert result[2]["rank_reb_chances"] == 3
+
+
+def test_get_team_defense_tracking_error_returns_none():
+    """When the tracking endpoint raises an exception, return None."""
+    with patch("scrapers.nba.leaguedashptstats.LeagueDashPtStats", side_effect=Exception("API error")), \
+         patch("scrapers.nba.time.sleep"), \
+         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
+        result = get_team_defense_tracking(last_n_games=15)
+
+    assert result is None

@@ -10,6 +10,7 @@ from nba_api.stats.endpoints import (
     leaguedashteamshotlocations,
     leaguedashplayerstats,
     leaguestandingsv3,
+    leaguedashptstats,
 )
 
 # UTC-3 (Brasília — sem DST)
@@ -318,6 +319,76 @@ def get_team_defense_vs_position(last_n_games=15):
             result[tid][position] = team_stats[tid]
 
     return result
+
+
+def get_team_defense_tracking(last_n_games=15):
+    """
+    Fetches advanced tracking stats: potential assists and rebound chances
+    that each team concedes, using the leaguedashptstats endpoint.
+
+    Returns:
+    {
+        team_id: {
+            "potential_ast": X,
+            "reb_chances": Y,
+            "rank_potential_ast": N,
+            "rank_reb_chances": N,
+        },
+        ...
+    }
+
+    Rank 1 = highest value = worst defense.
+    Returns None if the tracking endpoints fail or return unexpected data.
+    """
+    try:
+        time.sleep(DELAY)
+        passing_df = _retry(lambda: leaguedashptstats.LeagueDashPtStats(
+            player_or_team="Team",
+            pt_measure_type="Passing",
+            season=SEASON,
+            last_n_games=last_n_games,
+        ).get_data_frames()[0])
+
+        time.sleep(DELAY)
+        rebounding_df = _retry(lambda: leaguedashptstats.LeagueDashPtStats(
+            player_or_team="Team",
+            pt_measure_type="Rebounding",
+            season=SEASON,
+            last_n_games=last_n_games,
+        ).get_data_frames()[0])
+
+        # Build lookup dicts
+        passing_by_team = {
+            int(row["TEAM_ID"]): float(row["POTENTIAL_AST"])
+            for _, row in passing_df.iterrows()
+        }
+        rebounding_by_team = {
+            int(row["TEAM_ID"]): float(row["REB_CHANCES"])
+            for _, row in rebounding_df.iterrows()
+        }
+
+        # Merge into result
+        all_team_ids = sorted(set(passing_by_team.keys()) | set(rebounding_by_team.keys()))
+        result = {}
+        for tid in all_team_ids:
+            result[tid] = {
+                "potential_ast": passing_by_team.get(tid, 0.0),
+                "reb_chances": rebounding_by_team.get(tid, 0.0),
+            }
+
+        # Compute ranks (rank 1 = highest value)
+        sorted_by_ast = sorted(all_team_ids, key=lambda tid: result[tid]["potential_ast"], reverse=True)
+        for rank, tid in enumerate(sorted_by_ast, start=1):
+            result[tid]["rank_potential_ast"] = rank
+
+        sorted_by_reb = sorted(all_team_ids, key=lambda tid: result[tid]["reb_chances"], reverse=True)
+        for rank, tid in enumerate(sorted_by_reb, start=1):
+            result[tid]["rank_reb_chances"] = rank
+
+        return result
+    except Exception as e:
+        print(f"  [warning] get_team_defense_tracking failed: {e}")
+        return None
 
 
 def get_player_recent_stats(player_id, last_n_games=15):
