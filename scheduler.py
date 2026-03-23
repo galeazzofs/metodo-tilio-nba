@@ -128,23 +128,43 @@ def daily_check():
 def _get_first_tipoff_utc(games: list) -> datetime | None:
     """
     Tenta extrair o horário UTC do primeiro jogo da lista.
-    A NBA Live API retorna 'gameTimeUTC' em alguns endpoints — tentamos aqui.
+    Usa scoreboardv2 com a data explícita de BRT para evitar puxar jogos
+    do dia anterior após a meia-noite.
     Retorna None se não conseguir parsear.
     """
     try:
-        from nba_api.live.nba.endpoints import scoreboard
-        board = scoreboard.ScoreBoard()
-        raw_games = board.games.get_dict()
-        if not raw_games:
+        from nba_api.stats.endpoints import scoreboardv2
+        today_brt = datetime.now(BRT).strftime("%m/%d/%Y")
+        board = scoreboardv2.ScoreboardV2(game_date=today_brt)
+        header = board.game_header.get_data_frame()
+
+        if header.empty:
             return None
 
-        # Pega o primeiro jogo com gameTimeUTC disponível
-        for g in sorted(raw_games, key=lambda x: x.get("gameTimeUTC", "Z")):
-            game_time_str = g.get("gameTimeUTC")
-            if game_time_str:
-                # Formato: "2026-03-19T00:00:00Z"
-                dt = datetime.fromisoformat(game_time_str.replace("Z", "+00:00"))
-                return dt
+        # GAME_DATE_EST is in format "2026-03-23T00:00:00" — use with game start time
+        # The header has GAME_STATUS_TEXT with start time like "7:00 pm ET"
+        # Fallback: use the game_date + a reasonable default (7pm ET = midnight UTC)
+        for _, row in header.iterrows():
+            status_text = str(row.get("GAME_STATUS_TEXT", ""))
+            if "pm" in status_text.lower() or "am" in status_text.lower():
+                try:
+                    time_str = status_text.strip().upper().replace(" ET", "")
+                    game_date = datetime.now(BRT).date()
+                    from datetime import time as dt_time
+                    t = datetime.strptime(time_str, "%I:%M %p").time()
+                    # ET = UTC-5 (EST) or UTC-4 (EDT). Use UTC-4 during NBA season (March-April)
+                    et = timezone(timedelta(hours=-4))
+                    dt = datetime.combine(game_date, t, tzinfo=et)
+                    return dt.astimezone(timezone.utc)
+                except (ValueError, TypeError):
+                    continue
+
+        # Fallback: assume first game at 7pm ET
+        game_date = datetime.now(BRT).date()
+        from datetime import time as dt_time
+        et = timezone(timedelta(hours=-4))
+        return datetime.combine(game_date, dt_time(19, 0), tzinfo=et).astimezone(timezone.utc)
+
     except Exception as e:
         logger.warning(f"[scheduler] Não foi possível extrair tipoff: {e}")
 

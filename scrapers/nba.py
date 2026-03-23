@@ -1,7 +1,9 @@
 import math
 import time
+from datetime import datetime, timedelta, timezone
 from nba_api.live.nba.endpoints import scoreboard
 from nba_api.stats.endpoints import (
+    scoreboardv2,
     shotchartdetail,
     commonteamroster,
     playergamelog,
@@ -9,6 +11,9 @@ from nba_api.stats.endpoints import (
     leaguedashplayerstats,
     leaguestandingsv3,
 )
+
+# UTC-3 (Brasília — sem DST)
+BRT = timezone(timedelta(hours=-3))
 
 SEASON = "2025-26"
 DELAY = 1.0  # seconds between API calls to avoid rate limiting
@@ -31,6 +36,12 @@ def _retry(fn, retries=3, backoff=5):
 def get_todays_games():
     """
     Returns a list of today's games with team info.
+
+    Uses scoreboardv2 with an explicit date (today in BRT) so that late-night
+    NBA games from the previous day are never pulled after midnight BRT.
+    The NBA Live ScoreBoard (without date param) keeps showing the previous
+    "game day" until ~6 AM ET, which caused stale results in BRT mornings.
+
     [
         {
             'game_id': ...,
@@ -40,20 +51,36 @@ def get_todays_games():
         ...
     ]
     """
-    board = scoreboard.ScoreBoard()
-    games = board.games.get_dict()
+    today_brt = datetime.now(BRT).strftime("%m/%d/%Y")
+    print(f"  [date] Buscando jogos para {today_brt} (BRT)")
+
+    time.sleep(DELAY)
+    board = _retry(lambda: scoreboardv2.ScoreboardV2(game_date=today_brt))
+    header = board.game_header.get_data_frame()
+
+    if header.empty:
+        return []
 
     result = []
-    for game in games:
+    for _, row in header.iterrows():
         result.append({
-            "game_id": game["gameId"],
-            "home_team": game["homeTeam"]["teamName"],
-            "home_team_id": game["homeTeam"]["teamId"],
-            "home_tricode": game["homeTeam"]["teamTricode"],
-            "away_team": game["awayTeam"]["teamName"],
-            "away_team_id": game["awayTeam"]["teamId"],
-            "away_tricode": game["awayTeam"]["teamTricode"],
+            "game_id": str(row["GAME_ID"]),
+            "home_team_id": int(row["HOME_TEAM_ID"]),
+            "away_team_id": int(row["VISITOR_TEAM_ID"]),
         })
+
+    # Enrich with team names and tricodes from the static list
+    from nba_api.stats.static import teams as nba_teams_static
+    team_map = {t["id"]: t for t in nba_teams_static.get_teams()}
+
+    for game in result:
+        home = team_map.get(game["home_team_id"], {})
+        away = team_map.get(game["away_team_id"], {})
+        game["home_team"] = home.get("nickname", "Unknown")
+        game["home_tricode"] = home.get("abbreviation", "???")
+        game["away_team"] = away.get("nickname", "Unknown")
+        game["away_tricode"] = away.get("abbreviation", "???")
+
     return result
 
 
