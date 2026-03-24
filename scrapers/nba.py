@@ -405,7 +405,7 @@ def get_team_pace():
     result = _retry(lambda: leaguedashteamstats.LeagueDashTeamStats(
         season=SEASON,
         per_mode_detailed="PerGame",
-        measure_type_detailed_defense="Base",
+        measure_type_detailed_defense="Advanced",
     ))
     data = result.get_dict()
     rows = data["resultSets"][0]["rowSet"]
