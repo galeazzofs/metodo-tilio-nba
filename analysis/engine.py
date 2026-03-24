@@ -691,9 +691,14 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                         "replaces": replaces_list,
                     })
 
-                # 3PT scoring
+                # 3PT scoring — tracking_data now nested by team_id → position
+                opp_3pt_tracking = None
+                if tracking_data and opponent_team_id:
+                    opp_team_trk = tracking_data.get(opponent_team_id, {})
+                    pos_for_trk = POSITION_MAP.get(position, [position])[0]
+                    opp_3pt_tracking = opp_team_trk.get(pos_for_trk)
                 three_score, three_rating, three_signals, three_context = _score_player_3pt(
-                    position, opponent_name, team_defense, recent_stats, tracking_data, True,
+                    position, opponent_name, team_defense, recent_stats, opp_3pt_tracking, True,
                 )
                 if three_rating:
                     three_context["starter_out"] = replaces_list[0] if replaces_list else None
@@ -787,7 +792,8 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                     pos_key = POSITION_MAP[pos_key][0]
 
                 opp_def = team_defense.get(opponent_team_id, {})
-                opp_tracking = tracking_data.get(opponent_team_id) if tracking_data else None
+                opp_tracking_team = tracking_data.get(opponent_team_id, {}) if tracking_data else {}
+                opp_tracking = opp_tracking_team.get(pos_key) if opp_tracking_team else None
 
                 # AST scoring
                 ast_score, ast_rating, ast_signals, ast_context = _score_player_ast(

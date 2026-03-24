@@ -343,15 +343,17 @@ def get_team_defense_vs_position(last_n_games=15):
 def get_team_defense_tracking(last_n_games=15):
     """
     Fetches advanced tracking stats: potential assists and rebound chances
-    that each team concedes, using the leaguedashptstats endpoint.
+    that each team concedes, **split by opponent position** (Guard/Forward/Center).
+
+    Uses 6 API calls (3 positions x 2 measure types).
+    PG/SG map to Guard, SF/PF map to Forward, C maps to Center.
 
     Returns:
     {
         team_id: {
-            "potential_ast": X,
-            "reb_chances": Y,
-            "rank_potential_ast": N,
-            "rank_reb_chances": N,
+            "PG": {"potential_ast": X, "reb_chances": Y,
+                   "rank_potential_ast": N, "rank_reb_chances": N},
+            "SG": {...}, "SF": {...}, "PF": {...}, "C": {...},
         },
         ...
     }
@@ -359,50 +361,73 @@ def get_team_defense_tracking(last_n_games=15):
     Rank 1 = highest value = worst defense.
     Returns None if the tracking endpoints fail or return unexpected data.
     """
+    pos_groups = {
+        "G": ["PG", "SG"],
+        "F": ["SF", "PF"],
+        "C": ["C"],
+    }
+
     try:
-        time.sleep(DELAY)
-        passing_df = _retry(lambda: leaguedashptstats.LeagueDashPtStats(
-            player_or_team="Team",
-            pt_measure_type="Passing",
-            season=SEASON,
-            last_n_games=last_n_games,
-        ).get_data_frames()[0])
+        raw_by_group = {}
+        for api_pos in pos_groups:
+            time.sleep(DELAY)
+            passing_df = _retry(lambda _p=api_pos: leaguedashptstats.LeagueDashPtStats(
+                player_or_team="Team",
+                pt_measure_type="Passing",
+                season=SEASON,
+                last_n_games=last_n_games,
+                player_position_abbreviation_nullable=_p,
+            ).get_data_frames()[0])
 
-        time.sleep(DELAY)
-        rebounding_df = _retry(lambda: leaguedashptstats.LeagueDashPtStats(
-            player_or_team="Team",
-            pt_measure_type="Rebounding",
-            season=SEASON,
-            last_n_games=last_n_games,
-        ).get_data_frames()[0])
+            time.sleep(DELAY)
+            rebounding_df = _retry(lambda _p=api_pos: leaguedashptstats.LeagueDashPtStats(
+                player_or_team="Team",
+                pt_measure_type="Rebounding",
+                season=SEASON,
+                last_n_games=last_n_games,
+                player_position_abbreviation_nullable=_p,
+            ).get_data_frames()[0])
 
-        # Build lookup dicts
-        passing_by_team = {
-            int(row["TEAM_ID"]): float(row["POTENTIAL_AST"])
-            for _, row in passing_df.iterrows()
-        }
-        rebounding_by_team = {
-            int(row["TEAM_ID"]): float(row["REB_CHANCES"])
-            for _, row in rebounding_df.iterrows()
-        }
-
-        # Merge into result
-        all_team_ids = sorted(set(passing_by_team.keys()) | set(rebounding_by_team.keys()))
-        result = {}
-        for tid in all_team_ids:
-            result[tid] = {
-                "potential_ast": passing_by_team.get(tid, 0.0),
-                "reb_chances": rebounding_by_team.get(tid, 0.0),
+            passing_by_team = {
+                int(row["TEAM_ID"]): float(row["POTENTIAL_AST"])
+                for _, row in passing_df.iterrows()
+            }
+            rebounding_by_team = {
+                int(row["TEAM_ID"]): float(row["REB_CHANCES"])
+                for _, row in rebounding_df.iterrows()
             }
 
-        # Compute ranks (rank 1 = highest value)
-        sorted_by_ast = sorted(all_team_ids, key=lambda tid: result[tid]["potential_ast"], reverse=True)
-        for rank, tid in enumerate(sorted_by_ast, start=1):
-            result[tid]["rank_potential_ast"] = rank
+            all_team_ids = sorted(set(passing_by_team.keys()) | set(rebounding_by_team.keys()))
+            group_stats = {}
+            for tid in all_team_ids:
+                group_stats[tid] = {
+                    "potential_ast": passing_by_team.get(tid, 0.0),
+                    "reb_chances": rebounding_by_team.get(tid, 0.0),
+                }
 
-        sorted_by_reb = sorted(all_team_ids, key=lambda tid: result[tid]["reb_chances"], reverse=True)
-        for rank, tid in enumerate(sorted_by_reb, start=1):
-            result[tid]["rank_reb_chances"] = rank
+            # Compute ranks within this position group
+            sorted_by_ast = sorted(all_team_ids, key=lambda tid: group_stats[tid]["potential_ast"], reverse=True)
+            for rank, tid in enumerate(sorted_by_ast, start=1):
+                group_stats[tid]["rank_potential_ast"] = rank
+
+            sorted_by_reb = sorted(all_team_ids, key=lambda tid: group_stats[tid]["reb_chances"], reverse=True)
+            for rank, tid in enumerate(sorted_by_reb, start=1):
+                group_stats[tid]["rank_reb_chances"] = rank
+
+            raw_by_group[api_pos] = group_stats
+
+        # Map to 5 positions
+        all_team_ids = set()
+        for group_stats in raw_by_group.values():
+            all_team_ids.update(group_stats.keys())
+
+        result = {}
+        for tid in all_team_ids:
+            result[tid] = {}
+            for api_pos, positions in pos_groups.items():
+                data = raw_by_group.get(api_pos, {}).get(tid, {})
+                for pos in positions:
+                    result[tid][pos] = dict(data)
 
         return result
     except Exception as e:

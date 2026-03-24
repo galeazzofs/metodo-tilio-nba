@@ -405,24 +405,28 @@ def test_get_team_defense_tracking_happy_path():
     assert result is not None
     assert 1 in result and 2 in result and 3 in result
 
-    # Check keys
-    expected_keys = {"potential_ast", "reb_chances", "rank_potential_ast", "rank_reb_chances"}
-    assert set(result[1].keys()) == expected_keys
+    # Now nested: result[team_id][position] = {potential_ast, reb_chances, ranks}
+    assert set(result[1].keys()) == {"PG", "SG", "SF", "PF", "C"}
 
-    # Check values
-    assert result[2]["potential_ast"] == 60.0
-    assert result[3]["reb_chances"] == 45.0
+    expected_keys = {"potential_ast", "reb_chances", "rank_potential_ast", "rank_reb_chances"}
+    assert set(result[1]["PG"].keys()) == expected_keys
+    # PG and SG share same data (both Guard)
+    assert result[1]["PG"] == result[1]["SG"]
+    # SF and PF share same data (both Forward)
+    assert result[1]["SF"] == result[1]["PF"]
+
+    # Check values (same data for all positions since mock returns same data)
+    assert result[2]["PG"]["potential_ast"] == 60.0
+    assert result[3]["C"]["reb_chances"] == 45.0
 
     # Ranks: rank 1 = highest value
-    # POTENTIAL_AST: team2=60 (rank1), team3=55 (rank2), team1=50 (rank3)
-    assert result[2]["rank_potential_ast"] == 1
-    assert result[3]["rank_potential_ast"] == 2
-    assert result[1]["rank_potential_ast"] == 3
+    assert result[2]["PG"]["rank_potential_ast"] == 1
+    assert result[3]["PG"]["rank_potential_ast"] == 2
+    assert result[1]["PG"]["rank_potential_ast"] == 3
 
-    # REB_CHANCES: team3=45 (rank1), team1=40 (rank2), team2=35 (rank3)
-    assert result[3]["rank_reb_chances"] == 1
-    assert result[1]["rank_reb_chances"] == 2
-    assert result[2]["rank_reb_chances"] == 3
+    assert result[3]["C"]["rank_reb_chances"] == 1
+    assert result[1]["C"]["rank_reb_chances"] == 2
+    assert result[2]["C"]["rank_reb_chances"] == 3
 
 
 def test_get_team_defense_tracking_error_returns_none():
