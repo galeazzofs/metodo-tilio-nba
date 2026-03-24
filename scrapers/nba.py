@@ -264,11 +264,11 @@ def get_player_season_data():
 
 def get_team_defense_vs_position(last_n_games=15):
     """
-    Fetches how much each team concedes in AST, REB, 3PM, and 3PA using
-    leaguedashteamstats with Opponent measure type.
+    Fetches how much each team concedes in AST, REB, 3PM, and 3PA
+    **split by opponent position** (Guard, Forward, Center).
 
-    Data is team-level (not split by position) but is mapped to all 5 positions
-    so the engine interface stays consistent: team_defense[team_id][position].
+    Uses 3 API calls with player_position_abbreviation_nullable filter.
+    PG/SG map to Guard data, SF/PF map to Forward data, C maps to Center data.
 
     Returns nested dict:
     {
@@ -282,18 +282,6 @@ def get_team_defense_vs_position(last_n_games=15):
 
     Rank 1 = highest value = worst defense = best matchup for the attacker.
     """
-    positions = ["PG", "SG", "SF", "PF", "C"]
-
-    # Use leaguedashteamstats with Opponent measure — reliable endpoint
-    time.sleep(DELAY)
-    df = _retry(lambda: leaguedashteamstats.LeagueDashTeamStats(
-        per_mode_detailed="PerGame",
-        season=SEASON,
-        measure_type_detailed_defense="Opponent",
-        last_n_games=last_n_games,
-    ).get_data_frames()[0])
-
-    # Map OPP_ columns to our stat keys
     stat_map = {
         "OPP_AST": "ast",
         "OPP_REB": "reb",
@@ -301,25 +289,53 @@ def get_team_defense_vs_position(last_n_games=15):
         "OPP_FG3A": "three_pa",
     }
 
-    # Build team stats
-    team_stats = {}
-    for _, row in df.iterrows():
-        team_id = int(row["TEAM_ID"])
-        team_stats[team_id] = {
-            mapped: round(float(row[col]), 1) for col, mapped in stat_map.items()
-        }
+    # Position groups: API filter → which positions use this data
+    pos_groups = {
+        "G": ["PG", "SG"],
+        "F": ["SF", "PF"],
+        "C": ["C"],
+    }
 
-    # Compute ranks (rank 1 = highest value = worst defense)
-    team_ids = sorted(team_stats.keys())
-    for stat_key in stat_map.values():
-        sorted_teams = sorted(team_ids, key=lambda tid: team_stats[tid][stat_key], reverse=True)
-        for rank, tid in enumerate(sorted_teams, start=1):
-            team_stats[tid][f"rank_{stat_key}"] = rank
+    # Fetch data per position group (3 API calls)
+    raw_by_group = {}
+    for api_pos in pos_groups:
+        time.sleep(DELAY)
+        df = _retry(lambda _p=api_pos: leaguedashteamstats.LeagueDashTeamStats(
+            per_mode_detailed="PerGame",
+            season=SEASON,
+            measure_type_detailed_defense="Opponent",
+            player_position_abbreviation_nullable=_p,
+            last_n_games=last_n_games,
+        ).get_data_frames()[0])
 
-    # Map same data to all positions (team-level DvP)
+        team_stats = {}
+        for _, row in df.iterrows():
+            team_id = int(row["TEAM_ID"])
+            team_stats[team_id] = {
+                mapped: round(float(row[col]), 1) for col, mapped in stat_map.items()
+            }
+
+        # Compute ranks within this position group
+        team_ids = sorted(team_stats.keys())
+        for stat_key in stat_map.values():
+            sorted_teams = sorted(team_ids, key=lambda tid: team_stats[tid][stat_key], reverse=True)
+            for rank, tid in enumerate(sorted_teams, start=1):
+                team_stats[tid][f"rank_{stat_key}"] = rank
+
+        raw_by_group[api_pos] = team_stats
+
+    # Map to 5 positions
+    all_team_ids = set()
+    for group_stats in raw_by_group.values():
+        all_team_ids.update(group_stats.keys())
+
     result = {}
-    for tid in team_ids:
-        result[tid] = {pos: dict(team_stats[tid]) for pos in positions}
+    for tid in all_team_ids:
+        result[tid] = {}
+        for api_pos, positions in pos_groups.items():
+            data = raw_by_group.get(api_pos, {}).get(tid, {})
+            for pos in positions:
+                result[tid][pos] = dict(data)
 
     return result
 
