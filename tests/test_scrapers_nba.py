@@ -277,10 +277,10 @@ def test_get_player_recent_stats_empty_df_returns_empty_dict():
 
 # --------------- get_team_defense_vs_position tests ---------------
 
-def _make_dvp_df(rows):
+def _make_team_opp_df(rows):
     """
-    rows: list of dicts with TEAM_ID, AST, REB, FG3M, FG3A.
-    Returns a DataFrame resembling LeagueDashPlayerStats opponent output.
+    rows: list of dicts with TEAM_ID, OPP_AST, OPP_REB, OPP_FG3M, OPP_FG3A.
+    Returns a DataFrame resembling LeagueDashTeamStats Opponent output.
     """
     return pd.DataFrame(rows)
 
@@ -288,15 +288,15 @@ def _make_dvp_df(rows):
 def test_get_team_defense_vs_position_returns_all_positions():
     """Output has all 5 positions for each team."""
     fake_rows = [
-        {"TEAM_ID": 1, "AST": 5.0, "REB": 10.0, "FG3M": 2.0, "FG3A": 6.0},
-        {"TEAM_ID": 2, "AST": 6.0, "REB": 9.0, "FG3M": 3.0, "FG3A": 7.0},
-        {"TEAM_ID": 3, "AST": 7.0, "REB": 8.0, "FG3M": 4.0, "FG3A": 8.0},
+        {"TEAM_ID": 1, "OPP_AST": 5.0, "OPP_REB": 10.0, "OPP_FG3M": 2.0, "OPP_FG3A": 6.0},
+        {"TEAM_ID": 2, "OPP_AST": 6.0, "OPP_REB": 9.0, "OPP_FG3M": 3.0, "OPP_FG3A": 7.0},
+        {"TEAM_ID": 3, "OPP_AST": 7.0, "OPP_REB": 8.0, "OPP_FG3M": 4.0, "OPP_FG3A": 8.0},
     ]
-    df = _make_dvp_df(fake_rows)
+    df = _make_team_opp_df(fake_rows)
     mock_ep = MagicMock()
     mock_ep.get_data_frames.return_value = [df]
 
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_ep), \
+    with patch("scrapers.nba.leaguedashteamstats.LeagueDashTeamStats", return_value=mock_ep), \
          patch("scrapers.nba.time.sleep"), \
          patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
         result = get_team_defense_vs_position(last_n_games=15)
@@ -312,15 +312,15 @@ def test_get_team_defense_vs_position_returns_all_positions():
 def test_get_team_defense_vs_position_has_stat_and_rank_keys():
     """Each position entry has ast, reb, three_pm, three_pa and their ranks."""
     fake_rows = [
-        {"TEAM_ID": 1, "AST": 5.0, "REB": 10.0, "FG3M": 2.0, "FG3A": 6.0},
-        {"TEAM_ID": 2, "AST": 6.0, "REB": 9.0, "FG3M": 3.0, "FG3A": 7.0},
-        {"TEAM_ID": 3, "AST": 7.0, "REB": 8.0, "FG3M": 4.0, "FG3A": 8.0},
+        {"TEAM_ID": 1, "OPP_AST": 5.0, "OPP_REB": 10.0, "OPP_FG3M": 2.0, "OPP_FG3A": 6.0},
+        {"TEAM_ID": 2, "OPP_AST": 6.0, "OPP_REB": 9.0, "OPP_FG3M": 3.0, "OPP_FG3A": 7.0},
+        {"TEAM_ID": 3, "OPP_AST": 7.0, "OPP_REB": 8.0, "OPP_FG3M": 4.0, "OPP_FG3A": 8.0},
     ]
-    df = _make_dvp_df(fake_rows)
+    df = _make_team_opp_df(fake_rows)
     mock_ep = MagicMock()
     mock_ep.get_data_frames.return_value = [df]
 
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_ep), \
+    with patch("scrapers.nba.leaguedashteamstats.LeagueDashTeamStats", return_value=mock_ep), \
          patch("scrapers.nba.time.sleep"), \
          patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
         result = get_team_defense_vs_position(last_n_games=15)
@@ -334,15 +334,15 @@ def test_get_team_defense_vs_position_has_stat_and_rank_keys():
 def test_get_team_defense_vs_position_ranks_correctly():
     """Rank 1 = highest value (worst defense / best matchup for attacker)."""
     fake_rows = [
-        {"TEAM_ID": 1, "AST": 5.0, "REB": 10.0, "FG3M": 2.0, "FG3A": 6.0},
-        {"TEAM_ID": 2, "AST": 6.0, "REB": 9.0, "FG3M": 3.0, "FG3A": 7.0},
-        {"TEAM_ID": 3, "AST": 7.0, "REB": 8.0, "FG3M": 4.0, "FG3A": 8.0},
+        {"TEAM_ID": 1, "OPP_AST": 5.0, "OPP_REB": 10.0, "OPP_FG3M": 2.0, "OPP_FG3A": 6.0},
+        {"TEAM_ID": 2, "OPP_AST": 6.0, "OPP_REB": 9.0, "OPP_FG3M": 3.0, "OPP_FG3A": 7.0},
+        {"TEAM_ID": 3, "OPP_AST": 7.0, "OPP_REB": 8.0, "OPP_FG3M": 4.0, "OPP_FG3A": 8.0},
     ]
-    df = _make_dvp_df(fake_rows)
+    df = _make_team_opp_df(fake_rows)
     mock_ep = MagicMock()
     mock_ep.get_data_frames.return_value = [df]
 
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_ep), \
+    with patch("scrapers.nba.leaguedashteamstats.LeagueDashTeamStats", return_value=mock_ep), \
          patch("scrapers.nba.time.sleep"), \
          patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
         result = get_team_defense_vs_position(last_n_games=15)
@@ -357,28 +357,6 @@ def test_get_team_defense_vs_position_ranks_correctly():
     assert result[1]["PG"]["rank_reb"] == 1
     assert result[2]["PG"]["rank_reb"] == 2
     assert result[3]["PG"]["rank_reb"] == 3
-
-
-def test_get_team_defense_vs_position_groups_player_rows_by_team():
-    """When API returns multiple player rows per team, they should be averaged."""
-    fake_rows = [
-        {"TEAM_ID": 1, "AST": 4.0, "REB": 8.0, "FG3M": 2.0, "FG3A": 5.0},
-        {"TEAM_ID": 1, "AST": 6.0, "REB": 12.0, "FG3M": 4.0, "FG3A": 9.0},
-        {"TEAM_ID": 2, "AST": 5.0, "REB": 10.0, "FG3M": 3.0, "FG3A": 7.0},
-    ]
-    df = _make_dvp_df(fake_rows)
-    mock_ep = MagicMock()
-    mock_ep.get_data_frames.return_value = [df]
-
-    with patch("scrapers.nba.leaguedashplayerstats.LeagueDashPlayerStats", return_value=mock_ep), \
-         patch("scrapers.nba.time.sleep"), \
-         patch("scrapers.nba._retry", side_effect=lambda fn: fn()):
-        result = get_team_defense_vs_position(last_n_games=15)
-
-    # team1 avg AST = (4+6)/2 = 5.0, team2 AST = 5.0
-    assert result[1]["PG"]["ast"] == 5.0
-    # team1 avg REB = (8+12)/2 = 10.0
-    assert result[1]["PG"]["reb"] == 10.0
 
 
 # --------------- get_team_defense_tracking tests ---------------
