@@ -347,9 +347,9 @@ def _score_player_ast(position, opponent_name, team_defense, recent_stats, track
     potential_pts = 0
     if tracking_data is not None:
         rank_pot = tracking_data.get("rank_potential_ast", 99)
-        if rank_pot <= 2:
+        if rank_pot <= 4:
             potential_pts = 2
-        elif rank_pot <= 6:
+        elif rank_pot <= 10:
             potential_pts = 1
     score += potential_pts
     signals["potential_ast"] = potential_pts
@@ -407,9 +407,9 @@ def _score_player_reb(position, opponent_name, team_defense, recent_stats, track
     opp_pts = 0
     if tracking_data is not None:
         rank_reb = tracking_data.get("rank_reb_chances", 99)
-        if rank_reb <= 2:
+        if rank_reb <= 4:
             opp_pts = 2
-        elif rank_reb <= 6:
+        elif rank_reb <= 10:
             opp_pts = 1
     score += opp_pts
     signals["reb_opportunity"] = opp_pts
