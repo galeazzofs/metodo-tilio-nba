@@ -9,8 +9,10 @@ from unittest.mock import patch
 @patch("analysis.pipeline.get_team_defense_vs_position", return_value={})
 @patch("analysis.pipeline.get_defense_vs_position", return_value={})
 @patch("analysis.pipeline.get_projected_lineups", return_value={})
+@patch("analysis.pipeline.filter_games_by_stake", side_effect=lambda g, s: g)
+@patch("analysis.pipeline.get_conference_standings", return_value={})
 @patch("analysis.pipeline.get_todays_games", return_value=[{"game_id": "1"}])
-def test_pipeline_orchestrates_all_steps(m9, m8, m7, m6, m5, m4, m3, m2, m1):
+def test_pipeline_orchestrates_all_steps(m11, m10, m9, m8, m7, m6, m5, m4, m3, m2, m1):
     from analysis.pipeline import run_pipeline
     stats, games = run_pipeline()
     assert stats is not None
