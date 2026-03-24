@@ -1,6 +1,7 @@
 """Shared analysis pipeline for manual and scheduled triggers."""
 from scrapers.nba import (
     get_todays_games, get_team_defense_vs_position, get_team_defense_tracking,
+    get_team_pace,
 )
 from scrapers.rotowire import get_projected_lineups
 from scrapers.fantasypros import get_defense_vs_position
@@ -40,8 +41,12 @@ def run_pipeline(games=None):
     tracking_data = get_team_defense_tracking()
     print("  Concluído")
 
+    print("Buscando pace dos times (NBA API)...")
+    pace_map, median_pace = get_team_pace()
+    print(f"  Concluído (mediana: {median_pace:.1f})")
+
     print("Rodando análise (4 stats)...")
-    stats = run_analysis(games, lineups, dvp, team_defense, tracking_data)
+    stats = run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map, median_pace)
     total = sum(len(v) for v in stats.values())
     print(f"  {total} candidato(s) encontrado(s)")
 
