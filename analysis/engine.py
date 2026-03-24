@@ -787,10 +787,11 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                     pos_key = POSITION_MAP[pos_key][0]
 
                 opp_def = team_defense.get(opponent_team_id, {})
+                opp_tracking = tracking_data.get(opponent_team_id) if tracking_data else None
 
                 # AST scoring
                 ast_score, ast_rating, ast_signals, ast_context = _score_player_ast(
-                    pos_key, opponent_name, opp_def, recent_stats, tracking_data,
+                    pos_key, opponent_name, opp_def, recent_stats, opp_tracking,
                 )
                 if ast_rating:
                     ast_context["starter_out"] = None
@@ -810,7 +811,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
 
                 # REB scoring
                 reb_score, reb_rating, reb_signals, reb_context = _score_player_reb(
-                    pos_key, opponent_name, opp_def, recent_stats, tracking_data,
+                    pos_key, opponent_name, opp_def, recent_stats, opp_tracking,
                 )
                 if reb_rating:
                     reb_context["starter_out"] = None
