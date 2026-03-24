@@ -9,7 +9,7 @@ AST and REB analysis currently requires a starter to be injured and only evaluat
 
 ## Change Summary
 
-Remove the starter injury gate for AST and REB only. PTS and 3PT keep the existing gate. Compensate with stricter scoring threshold (5 instead of 4).
+Remove the starter injury gate for AST and REB only. PTS and 3PT keep the existing gate. Compensate with stricter scoring threshold (5 instead of 4) and a pace gate that filters out slow-paced games.
 
 ## Player Universe (AST/REB only)
 
@@ -19,6 +19,20 @@ For each game today, analyze:
 2. **Bench players** with **>= 20 min/g** season average
 
 This applies to ALL games, regardless of injury status. PTS and 3PT continue to require the injury gate.
+
+## Pace Gate (AST/REB only)
+
+Before scoring any player for AST or REB, check the pace of both teams in the game:
+
+1. Fetch pace for all 30 teams (NBA API `leaguedashteamstats` with pace stat)
+2. Calculate the **league median** pace
+3. For each game, check both teams' pace against the median:
+   - **At least one team above median** → game passes, proceed to scoring
+   - **Both teams below median** → game blocked for AST/REB analysis (too slow-paced)
+
+This gate does NOT award points. It only filters out games where both teams play slow, reducing opportunities for assists and rebounds.
+
+PTS and 3PT are NOT affected by this gate.
 
 ## Scoring — AST
 
@@ -71,7 +85,10 @@ for each game with injured starter → for each projected starter (bench only) �
 
 New flow:
 ```
-for each game → for each projected starter + bench >= 20min/g → score AST/REB
+for each game:
+  1. Check pace gate (both teams' pace vs league median)
+     - If both below median → skip game for AST/REB
+  2. For each projected starter + bench >= 20min/g → score AST/REB
 ```
 
 PTS and 3PT keep the old flow (injury gate).
