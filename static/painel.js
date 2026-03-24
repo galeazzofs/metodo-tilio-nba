@@ -173,7 +173,7 @@ function renderPainel() {
       </div>
 
       <!-- Tipo filter -->
-      ${allTipos.length > 1 ? `
+      ${allTipos.length >= 1 ? `
       <div class="dtipo-filter-row">
         <span class="dtipo-label">TIPO</span>
         <div class="dch-range-btns dtipo-btns">
