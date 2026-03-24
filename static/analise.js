@@ -194,9 +194,11 @@ function renderResultsLegacy(results) {
   el.innerHTML = html;
 }
 
+const RATING_CSS = { 'BEST OF THE NIGHT': 'best', 'VERY FAVORABLE': 'very', 'FAVORABLE': 'fav' };
+
 function buildStatCard(p, statKey) {
   const name = p.player_name || p.player || 'Desconhecido';
-  const rating = p.rating || 'fav';
+  const rating = RATING_CSS[p.rating] || p.rating || 'fav';
   const ratingColor = COLOR[rating] || '#888';
   const ratingBg = COUNT_BG[rating] || 'rgba(136,136,136,0.1)';
 
