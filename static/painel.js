@@ -6,6 +6,7 @@ let _chartTipo      = null;
 let _pluginsRegistered = false;
 
 let _panelFilter   = 'all'; // 'week' | 'month' | 'year' | 'all'
+let _tipoFilter    = 'all'; // 'all' | specific tipo_aposta value
 let _allBetsCache  = null;
 let _filteredCache = null;
 
@@ -74,6 +75,22 @@ function setPanelFilter(f) {
   if (_allBetsCache) renderPainel();
 }
 
+function setTipoFilter(t) {
+  _tipoFilter = t;
+  if (_allBetsCache) renderPainel();
+}
+
+function getDistinctTipos(bets) {
+  const tipos = new Set();
+  bets.forEach(b => { if (b.tipo_aposta) tipos.add(b.tipo_aposta); });
+  return [...tipos].sort();
+}
+
+function applyTipoFilter(bets) {
+  if (_tipoFilter === 'all') return bets;
+  return bets.filter(b => (b.tipo_aposta || 'Outro') === _tipoFilter);
+}
+
 // ── Load & render ─────────────────────────────────────────────────────────
 async function loadPainel() {
   const container = document.getElementById('tab-painel');
@@ -105,7 +122,7 @@ function renderPainel() {
     return;
   }
 
-  const filtered = applyPanelFilter(bets);
+  const filtered = applyTipoFilter(applyPanelFilter(bets));
   _filteredCache = filtered;
 
   const s = calcStats(filtered);
@@ -130,6 +147,13 @@ function renderPainel() {
                 : s.winRate !== null && s.winRate >= 40 ? 'kpf-gold' : 'kpf-red';
 
   const pf = f => _panelFilter === f ? 'active' : '';
+  const tf = f => _tipoFilter === f ? 'active' : '';
+
+  // Build tipo filter chips from all bets (not filtered, so we always see all options)
+  const allTipos = getDistinctTipos(bets);
+  const tipoChips = allTipos.map(t =>
+    `<button class="dch-range-btn dtipo-btn ${tf(t)}" onclick="setTipoFilter('${_escP(t)}')">${_escP(t)}</button>`
+  ).join('');
 
   container.innerHTML = `
     <div class="pg-wrap">
@@ -147,6 +171,16 @@ function renderPainel() {
           <button class="dch-range-btn ${pf('all')}"   onclick="setPanelFilter('all')">TUDO</button>
         </div>
       </div>
+
+      <!-- Tipo filter -->
+      ${allTipos.length > 1 ? `
+      <div class="dtipo-filter-row">
+        <span class="dtipo-label">TIPO</span>
+        <div class="dch-range-btns dtipo-btns">
+          <button class="dch-range-btn dtipo-btn ${tf('all')}" onclick="setTipoFilter('all')">TODOS</button>
+          ${tipoChips}
+        </div>
+      </div>` : ''}
 
       <!-- ── 3 KPI Cards ── -->
       <div class="dash-kpi-row">

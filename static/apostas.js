@@ -160,6 +160,10 @@ function setupApostasShell() {
           <option>Handicap</option>
           <option>Totais</option>
           <option>Jogador</option>
+          <option>Pontos</option>
+          <option>Assistências</option>
+          <option>Rebotes</option>
+          <option>3 Pontos</option>
           <option>Outro</option>
         </select>
 

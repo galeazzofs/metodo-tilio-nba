@@ -32,7 +32,8 @@ Formato esperado — um array de objetos:
 ]
 
 Regras:
-- "tipo_aposta" deve ser um dos: Vencedor, Handicap, Totais, Jogador, Outro
+- "tipo_aposta" deve ser um dos: Vencedor, Handicap, Totais, Jogador, Pontos, Assistências, Rebotes, 3 Pontos, Outro
+- Se a aposta for de props de jogador, classifique pelo tipo específico: Pontos (points/pts), Assistências (assists/ast), Rebotes (rebounds/reb), 3 Pontos (three pointers/3pt)
 - "resultado" deve ser um dos: ganhou, perdeu, pendente, void
 - Se a imagem mostrar termos em inglês como "Won" → "ganhou", "Lost" → "perdeu", "Open" → "pendente", "Void" → "void"
 - "data" deve ser no formato YYYY-MM-DD; se aparecer apenas dia/mês, use o ano atual
