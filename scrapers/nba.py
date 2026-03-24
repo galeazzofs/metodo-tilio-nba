@@ -287,7 +287,7 @@ def get_team_defense_vs_position(last_n_games=15):
             per_mode_detailed="PerGame",
             season=SEASON,
             last_n_games=last_n_games,
-            player_position_nullable=pos,
+            player_position_abbreviation_nullable=pos,
             measure_type_detailed_defense="Opponent",
         ).get_data_frames()[0])
 
