@@ -63,6 +63,9 @@ def get_todays_games():
     if header.empty:
         return []
 
+    # scoreboardv2 can return duplicate rows per game — deduplicate by GAME_ID
+    header = header.drop_duplicates(subset=["GAME_ID"])
+
     result = []
     for _, row in header.iterrows():
         result.append({
