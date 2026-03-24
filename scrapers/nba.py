@@ -1,4 +1,5 @@
 import math
+import statistics
 import time
 from datetime import datetime, timedelta, timezone
 from nba_api.live.nba.endpoints import scoreboard
@@ -391,6 +392,35 @@ def get_team_defense_tracking(last_n_games=15):
     except Exception as e:
         print(f"  [warning] get_team_defense_tracking failed: {e}")
         return None
+
+
+def get_team_pace():
+    """
+    Fetch pace for all 30 teams.
+    Returns (pace_map, median_pace):
+      - pace_map: {team_id: pace_float}
+      - median_pace: float (league median)
+    """
+    time.sleep(DELAY)
+    result = _retry(lambda: leaguedashteamstats.LeagueDashTeamStats(
+        season=SEASON,
+        per_mode_detailed="PerGame",
+        measure_type_detailed_defense="Base",
+    ))
+    data = result.get_dict()
+    rows = data["resultSets"][0]["rowSet"]
+    headers = data["resultSets"][0]["headers"]
+    team_id_idx = headers.index("TEAM_ID")
+    pace_idx = headers.index("PACE")
+    pace_map = {}
+    all_paces = []
+    for row in rows:
+        tid = row[team_id_idx]
+        pace = row[pace_idx]
+        pace_map[tid] = pace
+        all_paces.append(pace)
+    median_pace = statistics.median(all_paces)
+    return pace_map, median_pace
 
 
 def get_player_recent_stats(player_id, last_n_games=15):
