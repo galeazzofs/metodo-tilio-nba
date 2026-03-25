@@ -414,7 +414,7 @@ function buildHistEntry(analysis) {
       candidateCount += candidates.length;
       for (const c of candidates) {
         const name = c.player_name || c.player || '?';
-        const rating = c.rating || 'fav';
+        const rating = RATING_CSS[c.rating] || c.rating || 'fav';
         const color = COLOR[rating] || '#888';
         const bg = COUNT_BG[rating] || 'rgba(255,255,255,0.03)';
         chipsHtml += `<span class="hist-cand-chip" style="border:1px solid ${color};color:${color};background:${bg}">${sec.icon} ${esc(name)}</span> `;
