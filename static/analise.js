@@ -416,7 +416,8 @@ function buildHistEntry(analysis) {
         const name = c.player_name || c.player || '?';
         const rating = c.rating || 'fav';
         const color = COLOR[rating] || '#888';
-        chipsHtml += `<span class="hist-cand-chip" style="border:1px solid ${color};color:${color};background:rgba(255,255,255,0.03)">${sec.icon} ${esc(name)}</span> `;
+        const bg = COUNT_BG[rating] || 'rgba(255,255,255,0.03)';
+        chipsHtml += `<span class="hist-cand-chip" style="border:1px solid ${color};color:${color};background:${bg}">${sec.icon} ${esc(name)}</span> `;
       }
     }
 
