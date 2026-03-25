@@ -1,5 +1,6 @@
 import os
 import statistics
+import time
 import requests
 from dotenv import load_dotenv
 
@@ -40,6 +41,17 @@ TRICODE_TO_API_NAME = {
     "WAS": "Washington Wizards",
 }
 
+STAT_TO_MARKET = {
+    "pts": "player_points",
+    "ast": "player_assists",
+    "reb": "player_rebounds",
+    "three_pt": "player_threes",
+}
+
+MARKET_TO_STAT = {v: k for k, v in STAT_TO_MARKET.items()}
+
+STAT_KEYS = list(STAT_TO_MARKET.keys())
+
 
 def _get_api_key():
     return os.getenv("ODDS_API_KEY")
@@ -51,14 +63,13 @@ def get_event_ids(games):
 
     Only returns event IDs for games present in the input `games` list.
     Returns {(away_tricode, home_tricode): event_id}.
-    Returns {} on any HTTP error (all lines will show as N/A).
+    The /events endpoint is FREE and does not consume usage credits.
     """
     api_key = _get_api_key()
     if not api_key:
         print("  [odds] WARNING: ODDS_API_KEY not set — skipping lines")
         return {}
 
-    # Build set of today's games we care about, keyed by (away_tc, home_tc)
     wanted = {
         (g["away_tricode"], g["home_tricode"])
         for g in games
@@ -79,8 +90,6 @@ def get_event_ids(games):
     print(f"  [odds] requests remaining: {resp.headers.get('x-requests-remaining', 'unknown')}")
 
     api_events = resp.json()
-
-    # Build reverse lookup: API name → tricode
     name_to_tricode = {v: k for k, v in TRICODE_TO_API_NAME.items()}
 
     result = {}
@@ -95,53 +104,78 @@ def get_event_ids(games):
     return result
 
 
-MARKET_TO_STAT = {
-    "player_points": "pts",
-    "player_assists": "ast",
-    "player_rebounds": "reb",
-    "player_threes": "three_pt",
-}
+def _fetch_odds(api_key, event_id, markets_csv, game_label):
+    """Fetch odds for a single event with retry on 429. Returns response JSON or None."""
+    for attempt in range(3):
+        try:
+            resp = requests.get(
+                f"{BASE_URL}/sports/basketball_nba/events/{event_id}/odds",
+                params={
+                    "apiKey": api_key,
+                    "regions": "us",
+                    "markets": markets_csv,
+                    "oddsFormat": "american",
+                },
+                timeout=10,
+            )
+            if resp.status_code == 429:
+                remaining = resp.headers.get("x-requests-remaining", "?")
+                if remaining != "?" and int(remaining) <= 0:
+                    print(f"  [odds] quota exceeded — 0 requests remaining")
+                    return None
+                wait = 2 ** attempt
+                print(f"  [odds] rate-limited (429), retrying in {wait}s...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
 
-ALL_MARKETS = ",".join(MARKET_TO_STAT.keys())
+            remaining = resp.headers.get("x-requests-remaining", "?")
+            n_markets = len(markets_csv.split(","))
+            print(f"  [odds] {game_label} — {n_markets} market(s), remaining: {remaining}")
+            return resp.json()
+        except requests.exceptions.RequestException as e:
+            print(f"  [odds] WARNING: could not fetch odds for {game_label} — {e}")
+            return None
 
-STAT_KEYS = list(MARKET_TO_STAT.values())
+    print(f"  [odds] WARNING: giving up on {game_label} after 3 retries")
+    return None
 
 
 def get_player_lines(stats, event_ids):
     """
-    Fetches consensus over/under lines for points, assists, rebounds, and threes.
+    Fetches consensus over/under lines ONLY for candidates found by the engine.
 
-    Parameters
-    ----------
-    stats : dict
-        {"pts": [...], "ast": [...], "reb": [...], "three_pt": [...]}
-        Each entry has "player_name" and "game" keys.
-    event_ids : dict
-        {(away_tricode, home_tricode): event_id}
+    Cost-optimised: requests only the markets (stat types) that have candidates
+    in each game, instead of requesting all 4 markets for every game.
 
-    Returns
-    -------
-    dict
-        {player_name: {"pts": val, "pts_odds": price, "ast": val, "ast_odds": price,
-                        "reb": val, "reb_odds": price, "three_pt": val, "three_pt_odds": price}}
-        val/price is None when the market is unavailable for that player.
+    API cost = number_of_markets × number_of_regions (1) per game request.
     """
     api_key = _get_api_key()
     if not api_key:
         return {}
 
-    # Build game-to-players mapping from all stat arrays
-    games_to_players = {}
+    # Build per-game mapping: game_str → {stat_keys needed, player_names}
+    game_needs = {}  # game_str → {"stats": set(), "players": set()}
     for stat_key, entries in stats.items():
         for entry in entries:
             game_str = entry.get("game", "")
             player_name = entry.get("player_name", "")
             if game_str and player_name:
-                games_to_players.setdefault(game_str, set()).add(player_name)
+                bucket = game_needs.setdefault(game_str, {"stats": set(), "players": set()})
+                bucket["stats"].add(stat_key)
+                bucket["players"].add(player_name)
+
+    if not game_needs:
+        print("  [odds] no candidates — skipping odds fetch")
+        return {}
+
+    # Estimate cost
+    total_cost = sum(len(b["stats"]) for b in game_needs.values())
+    print(f"  [odds] fetching lines for {len(game_needs)} game(s), estimated cost: {total_cost} request(s)")
 
     result = {}
 
-    for game_str, player_names in games_to_players.items():
+    for game_str, bucket in game_needs.items():
         parts = game_str.split(" @ ")
         if len(parts) != 2:
             continue
@@ -150,30 +184,25 @@ def get_player_lines(stats, event_ids):
         if not event_id:
             continue
 
-        try:
-            resp = requests.get(
-                f"{BASE_URL}/sports/basketball_nba/events/{event_id}/odds",
-                params={
-                    "apiKey": api_key,
-                    "regions": "eu",
-                    "markets": ALL_MARKETS,
-                },
-                timeout=10,
-            )
-            if resp.status_code == 429:
-                print("[odds] quota exceeded — HTTP 429")
-                return {}
-            resp.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print(f"  [odds] WARNING: could not fetch odds for {game_str} — {e}")
-            return {}
+        # Build markets CSV with only the stat types we need for this game
+        markets_csv = ",".join(
+            STAT_TO_MARKET[s] for s in bucket["stats"] if s in STAT_TO_MARKET
+        )
+        if not markets_csv:
+            continue
 
-        data = resp.json()
+        player_names = bucket["players"]
+
+        data = _fetch_odds(api_key, event_id, markets_csv, game_str)
+        if data is None:
+            continue
+
+        time.sleep(1)  # avoid rate-limiting between games
+
         bookmakers = data.get("bookmakers", [])
 
         # Collect lines per player per stat across all bookmakers
-        # {player: {stat_key: [(point, price), ...]}}
-        player_values = {name: {s: [] for s in STAT_KEYS} for name in player_names}
+        player_values = {name: {s: [] for s in bucket["stats"]} for name in player_names}
 
         for bookmaker in bookmakers:
             for market in bookmaker.get("markets", []):
@@ -186,7 +215,6 @@ def get_player_lines(stats, event_ids):
                     point = outcome.get("point")
                     if point is None:
                         continue
-                    # Only consider "Over" outcomes to avoid duplicating lines
                     if outcome.get("name", "").lower() != "over":
                         continue
                     price = outcome.get("price")
