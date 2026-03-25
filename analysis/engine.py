@@ -719,7 +719,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
     # ===================================================================
     # LOOP 2: AST and REB — open gate (all qualifying players, pace gate)
     # ===================================================================
-    print("  --- Loop 2: AST/REB (open gate) ---")
+    print("  --- Loop 2: AST/REB (open gate) ---", flush=True)
     for game in games:
         home_id = game["home_team_id"]
         away_id = game["away_team_id"]
@@ -769,6 +769,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                                 "position": rp.get("position") or "G",
                             })
 
+                print(f"    [AST/REB] {game_label} ({player_tricode}) — {len(players_to_analyze)} players", flush=True)
             for player in players_to_analyze:
                 player_name = player["name"]
                 position = player["position"]
@@ -781,9 +782,10 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                     continue
 
                 try:
+                    print(f"      -> {player_name} ({position})", flush=True)
                     recent_stats, _ = _get_player_data(player_id)
                 except Exception as e:
-                    print(f"    [error] {e} - skipping {player_name}")
+                    print(f"    [error] {e} - skipping {player_name}", flush=True)
                     continue
 
                 # Normalize composite positions for defense lookup

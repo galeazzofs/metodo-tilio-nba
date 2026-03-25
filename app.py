@@ -61,7 +61,7 @@ class _LogStream:
                 analysis_state["logs"].append(text.rstrip())
 
     def flush(self):
-        pass
+        pass  # nothing to flush; logs are already in the list
 
 
 def _run_analysis():
