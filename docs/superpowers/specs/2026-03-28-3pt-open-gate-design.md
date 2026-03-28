@@ -44,17 +44,25 @@ def _score_player_3pt(position, opponent_name, team_defense, recent_stats, track
 | 3-6 | +2 |
 | 7+ | discard (return 0) |
 
-**Graduate Signal 3 (opportunity).** Currently all-or-nothing: both conditions → +2, else 0. New:
+**Graduate Signal 3 (opportunity).** Currently all-or-nothing with a fallback path. New graduated logic replaces both the normal and fallback paths with a single unified approach:
 
-| Condition | Points |
+Two conditions are evaluated:
+- **Condition A (opponent permissive):** Opponent `rank_three_pa` ≤ 6 (allows many 3PA to this position)
+- **Condition B (volume up):** Player 3PA recent ≥ season avg 3PA
+
+| Result | Points |
 |---|---|
-| Opponent `rank_three_pa` ≤ 6 **AND** player 3PA recent ≥ season avg | +2 |
-| Only one of the two conditions met | +1 |
-| Neither condition met | 0 |
+| Both A and B met | +2 |
+| Only one of A or B met | +1 |
+| Neither met | 0 |
+
+**Note:** The current code has two paths — a normal path (`tracking_data is not None`, uses `rank_three_pa ≤ 6`) and a fallback path (`tracking_data is None`, uses stricter `rank_three_pa ≤ 3`). The new graduated logic **removes this distinction** — always use `rank_three_pa ≤ 6` as Condition A, regardless of whether `tracking_data` is present. The `tracking_data` parameter is no longer needed for Signal 3 (it was only used to decide which threshold to apply).
 
 **Signal 2 (recent form)** stays the same: 3PM recent ≥ season avg → +1.
 
 **Thresholds** stay the same: ≥ 6 BEST OF THE NIGHT, ≥ 4 VERY FAVORABLE.
+
+**DvP graduation impact on BEST OF THE NIGHT:** With DvP rank 3-6 now yielding +2 instead of +3, the maximum score for these matchups becomes 5 (2+1+2), which is VERY FAVORABLE. Only DvP rank 1-2 can reach 6 (3+1+2) for BEST OF THE NIGHT. This is intentional — BEST OF THE NIGHT should be reserved for the most elite matchups.
 
 ### 2. Loop Restructure — `run_analysis()`
 
@@ -95,9 +103,12 @@ This affects **all Loop 2 stats**: AST, REB, and 3PT.
 Loop 1 currently scores both PTS and 3PT for injury-gate players. After this change:
 
 - Loop 1 scores **PTS only**
-- The 3PT scoring block inside Loop 1 (lines 726-749) is **removed entirely**
+- The 3PT scoring block inside Loop 1 (lines 726-749) is **removed entirely**, including the 3PT tracking resolution code (lines 726-731 that resolves `opp_3pt_tracking`)
 - Loop 1 header changes from `"Loop 1: PTS/3PT (injury gate)"` to `"Loop 1: PTS (injury gate)"`
 - The skip log changes from `"[skip PTS/3PT]"` to `"[skip PTS]"`
+- The print log at line 680 changes from `"[PTS/3PT] Analyzing..."` to `"[PTS] Analyzing..."`
+
+**Bug fix note:** The current Loop 1 passes the full `team_defense` dict (keyed by team_id) to `_score_player_3pt()`, but the function expects a dict keyed by position. This meant 3PT scoring in Loop 1 was always getting empty data for `pos_def`. Moving 3PT to Loop 2 implicitly fixes this, as Loop 2 correctly resolves `opp_def = team_defense.get(opponent_team_id, {})` before passing it.
 
 ### 5. Caller Update for `_score_player_3pt()`
 
@@ -114,9 +125,8 @@ Inside Loop 2, after the REB scoring block, add 3PT scoring:
 # 3PT scoring — only for players with sufficient 3PA volume
 season_avg_3pa = recent_stats.get("season_avg_three_pa", 0)
 if season_avg_3pa >= MIN_3PA_PER_GAME:
-    opp_3pt_tracking = opp_tracking  # already fetched for AST/REB
     three_score, three_rating, three_signals, three_context = _score_player_3pt(
-        pos_key, opponent_name, opp_def, recent_stats, opp_3pt_tracking,
+        pos_key, opponent_name, opp_def, recent_stats, opp_tracking,
     )
     if three_rating:
         three_context["starter_out"] = None
@@ -135,7 +145,11 @@ if season_avg_3pa >= MIN_3PA_PER_GAME:
         })
 ```
 
-Note: `replaces` is always `[]` since there is no injury gate.
+Notes:
+- `opp_def` is the per-team dict keyed by position, already resolved at Loop 2 line 828 — this is the correct structure for `_score_player_3pt` (unlike Loop 1 which was passing the wrong dict).
+- `opp_tracking` is already resolved at Loop 2 line 830 — reused directly, no aliasing needed.
+- `replaces` is always `[]` since there is no injury gate.
+- `starter_out` is set to `None` because downstream consumers (formatter) expect this field; `None` indicates no injury replacement context.
 
 ## Files Changed
 
@@ -161,6 +175,12 @@ After: Steph Curry with 11.2 3PA/g vs MIA (DvP #3) → scored and potentially ra
 
 ### Volume gate filters non-shooters
 A center averaging 0.5 3PA/g with a great DvP matchup is skipped — no point analyzing 3PT for a player who doesn't shoot threes.
+
+### DvP graduation narrows BEST OF THE NIGHT
+A player with DvP rank #4 previously scored +3 (binary). Now scores +2 (graduated). Max possible: 2+1+2 = 5 → VERY FAVORABLE. Only DvP rank 1-2 can reach BEST OF THE NIGHT (3+1+2 = 6).
+
+### Volume gate boundary
+A player averaging exactly 3.0 3PA/g passes the volume gate (≥ 3.0 is inclusive). A player at 2.9 3PA/g is skipped for 3PT but still analyzed for AST/REB.
 
 ### Bench threshold filters low-minute players
 A bench player averaging 18 min/g is excluded from AST, REB, and 3PT analysis. Before, they would have been included (threshold was 20).
