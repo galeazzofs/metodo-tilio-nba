@@ -159,11 +159,13 @@ def get_game_moneylines(games):
         home_tc = name_to_tricode.get(home_api)
 
         if not away_tc or not home_tc:
+            print(f"  [odds] moneylines — skipping unmapped team: {away_api} / {home_api}")
             continue
 
         # Look up canonical key — handles home/away order mismatch
         canon = canonical_key.get((away_tc, home_tc))
         if canon is None:
+            print(f"  [odds] moneylines — {away_tc} @ {home_tc} not in wanted games, skipping")
             continue
 
         all_prices = []
@@ -177,7 +179,11 @@ def get_game_moneylines(games):
                         all_prices.append(float(price))
 
         if all_prices:
-            result[canon] = min(all_prices)
+            lowest = min(all_prices)
+            result[canon] = lowest
+            print(f"  [odds] moneylines — {canon[0]} @ {canon[1]}: lowest odd = {lowest}")
+        else:
+            print(f"  [odds] moneylines — {canon[0]} @ {canon[1]}: no h2h prices found")
 
     return result
 

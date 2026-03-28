@@ -29,6 +29,8 @@ def run_pipeline(games=None):
     print("Buscando moneylines para filtro de blowout...")
     moneylines = get_game_moneylines(games)
     print(f"  {len(moneylines)} jogos com odds carregados")
+    for key, odd in moneylines.items():
+        print(f"    {key[0]} @ {key[1]}: {odd}")
 
     print("Filtrando jogos com implicação de playoff/play-in...")
     standings = get_conference_standings()
