@@ -36,6 +36,8 @@ POSITION_COMPAT = {
 }
 
 BLOWOUT_ODD_THRESHOLD = 1.10
+MIN_3PA_PER_GAME = 3.0
+MIN_BENCH_MINUTES = 25.0
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -638,7 +640,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
     # ===================================================================
     # LOOP 1: PTS and 3PT — injury gate (bench players stepping up only)
     # ===================================================================
-    print("  --- Loop 1: PTS/3PT (injury gate) ---")
+    print("  --- Loop 1: PTS (injury gate) ---")
     for game in games:
         game_label = f"{game['away_tricode']} @ {game['home_tricode']}"
 
@@ -662,7 +664,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                     out_starters.append({"name": p["name"], "position": p.get("position", "")})
 
             if not out_starters:
-                print(f"  [skip PTS/3PT] {player_tricode} - no starter out")
+                print(f"  [skip PTS] {player_tricode} - no starter out")
                 continue
 
             for starter in team_data.get("starters", []):
@@ -682,7 +684,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                 if not matched_starters:
                     continue
 
-                print(f"  [PTS/3PT] Analyzing {player_name} ({player_tricode} vs {opponent_tricode}, {min_avg} min/g)...")
+                print(f"  [PTS] Analyzing {player_name} ({player_tricode} vs {opponent_tricode}, {min_avg} min/g)...")
 
                 try:
                     recent_stats, player_zones = _get_player_data(player_id)
@@ -728,35 +730,10 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                         "replaces": replaces_list,
                     })
 
-                # 3PT scoring — tracking_data now nested by team_id → position
-                opp_3pt_tracking = None
-                if tracking_data and opponent_team_id:
-                    opp_team_trk = tracking_data.get(opponent_team_id, {})
-                    pos_for_trk = POSITION_MAP.get(position, [position])[0]
-                    opp_3pt_tracking = opp_team_trk.get(pos_for_trk)
-                three_score, three_rating, three_signals, three_context = _score_player_3pt(
-                    position, opponent_name, team_defense, recent_stats, opp_3pt_tracking,
-                )
-                if three_rating:
-                    three_context["starter_out"] = replaces_list[0] if replaces_list else None
-                    all_candidates["three_pt"].append({
-                        "player_name": player_name,
-                        "player_id": player_id,
-                        "team": team_data["team_name"],
-                        "position": position,
-                        "game": game_label,
-                        "score": three_score,
-                        "rating": three_rating,
-                        "signals": three_signals,
-                        "context": three_context,
-                        "recent_stats": recent_stats,
-                        "replaces": replaces_list,
-                    })
-
     # ===================================================================
     # LOOP 2: AST and REB — open gate (all qualifying players, pace gate)
     # ===================================================================
-    print("  --- Loop 2: AST/REB (open gate) ---", flush=True)
+    print("  --- Loop 2: AST/REB/3PT (open gate) ---", flush=True)
     for game in games:
         home_id = game["home_team_id"]
         away_id = game["away_team_id"]
@@ -767,7 +744,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
             if not _pace_gate_passes(home_id, away_id, pace_map, median_pace):
                 home_pace = pace_map.get(home_id, 0)
                 away_pace = pace_map.get(away_id, 0)
-                print(f"  [skip AST/REB] {game_label} - both teams below pace median ({home_pace:.1f} & {away_pace:.1f} < {median_pace:.1f})")
+                print(f"  [skip AST/REB/3PT] {game_label} - both teams below pace median ({home_pace:.1f} & {away_pace:.1f} < {median_pace:.1f})")
                 continue
 
         for player_tricode, opponent_tricode in [
@@ -782,14 +759,14 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
             opponent_name = opponent_data.get("team_name", opponent_tricode)
             opponent_team_id = tricode_to_team_id.get(opponent_tricode)
 
-            # Build player list: projected starters + bench >= 20 min/g
+            # Build player list: projected starters + bench >= MIN_BENCH_MINUTES min/g
             players_to_analyze = []
             starter_names = set()
             for s in team_data.get("starters", []):
                 players_to_analyze.append(s)
                 starter_names.add(s["name"])
 
-            # Add bench players >= 20 min/g from roster
+            # Add bench players >= MIN_BENCH_MINUTES min/g from roster
             team_id = tricode_to_team_id.get(player_tricode)
             if team_id:
                 try:
@@ -800,13 +777,13 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                     if rp["player_name"] not in starter_names:
                         pid = rp["player_id"]
                         mins = season_minutes.get(pid)
-                        if mins is not None and mins >= 20.0:
+                        if mins is not None and mins >= MIN_BENCH_MINUTES:
                             players_to_analyze.append({
                                 "name": rp["player_name"],
                                 "position": rp.get("position") or "G",
                             })
 
-                print(f"    [AST/REB] {game_label} ({player_tricode}) — {len(players_to_analyze)} players", flush=True)
+                print(f"    [AST/REB/3PT] {game_label} ({player_tricode}) — {len(players_to_analyze)} players", flush=True)
             for player in players_to_analyze:
                 player_name = player["name"]
                 position = player["position"]
@@ -873,5 +850,27 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                         "recent_stats": recent_stats,
                         "replaces": [],
                     })
+
+                # 3PT scoring — only for players with sufficient 3PA volume
+                season_avg_3pa = recent_stats.get("season_avg_three_pa", 0)
+                if season_avg_3pa >= MIN_3PA_PER_GAME:
+                    three_score, three_rating, three_signals, three_context = _score_player_3pt(
+                        pos_key, opponent_name, opp_def, recent_stats, opp_tracking,
+                    )
+                    if three_rating:
+                        three_context["starter_out"] = None
+                        all_candidates["three_pt"].append({
+                            "player_name": player_name,
+                            "player_id": player_id,
+                            "team": team_data.get("team_name", player_tricode),
+                            "position": position,
+                            "game": game_label,
+                            "score": three_score,
+                            "rating": three_rating,
+                            "signals": three_signals,
+                            "context": three_context,
+                            "recent_stats": recent_stats,
+                            "replaces": [],
+                        })
 
     return _dedup_candidates(all_candidates)

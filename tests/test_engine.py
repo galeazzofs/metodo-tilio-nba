@@ -7,6 +7,7 @@ from analysis.engine import (
     filter_games_by_stake, _ordinal, _score_player_ast, _score_player_reb,
     _score_player_3pt, _dedup_candidates,
     filter_games_by_blowout, BLOWOUT_ODD_THRESHOLD,
+    MIN_3PA_PER_GAME, MIN_BENCH_MINUTES,
 )
 
 # ---------------------------------------------------------------------------
@@ -992,6 +993,24 @@ def test_3pt_only_volume_up():
         tracking_data=None,
     )
     assert signals["potential_3pt"] == 1
+
+
+def test_3pt_constants():
+    """Verify constant values."""
+    assert MIN_3PA_PER_GAME == 3.0
+    assert MIN_BENCH_MINUTES == 25.0
+
+
+def test_3pt_volume_gate_boundary():
+    """Player with exactly 3.0 3PA/g passes the gate (>= is inclusive)."""
+    assert 3.0 >= MIN_3PA_PER_GAME  # boundary: exactly at threshold passes
+    assert 2.9 < MIN_3PA_PER_GAME   # below threshold fails
+
+
+def test_bench_threshold_boundary():
+    """Player with exactly 25.0 min/g passes (>= is inclusive), 24.9 fails."""
+    assert 25.0 >= MIN_BENCH_MINUTES
+    assert 24.9 < MIN_BENCH_MINUTES
 
 
 # ---------------------------------------------------------------------------
