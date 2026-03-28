@@ -889,88 +889,109 @@ RECENT_3PT_BELOW_AVG = {"three_pm": 1.0, "season_avg_three_pm": 2.0, "three_pa":
 RECENT_3PT_VOLUME_DOWN = {"three_pm": 3.0, "season_avg_three_pm": 2.0, "three_pa": 5.0, "season_avg_three_pa": 6.0}
 
 
-def test_3pt_gate_not_stepping_up():
-    score, rating, signals, context = _score_player_3pt(
-        position="PG", opponent_name="TeamA",
-        team_defense=TEAM_DEF_3PT_ELITE,
-        recent_stats=RECENT_3PT_ABOVE_AVG,
-        tracking_data=None,
-        is_stepping_up=False,
-    )
-    assert score == 0
-    assert rating is None
-    assert signals == {}
-    assert context == {}
-
-
 def test_3pt_gate_dvp_rank_above_6():
     score, rating, signals, context = _score_player_3pt(
         position="PG", opponent_name="TeamA",
         team_defense=TEAM_DEF_3PT_POOR,
         recent_stats=RECENT_3PT_ABOVE_AVG,
         tracking_data=None,
-        is_stepping_up=True,
     )
     assert score == 0
     assert rating is None
 
 
 def test_3pt_full_score_6():
-    """DvP rank 2 (+3) + form above avg (+1) + volume up + rank_three_pa 3 (+2) = 6 BEST."""
+    """DvP rank 2 (+3) + form above avg (+1) + both Signal 3 conditions (+2) = 6 BEST."""
     score, rating, signals, context = _score_player_3pt(
         position="PG", opponent_name="TeamA",
         team_defense=TEAM_DEF_3PT_ELITE,
         recent_stats=RECENT_3PT_ABOVE_AVG,
         tracking_data=None,
-        is_stepping_up=True,
     )
     assert score == 6
     assert rating == "BEST OF THE NIGHT"
     assert signals["dvp"] == 3
     assert signals["recent_form"] == 1
     assert signals["potential_3pt"] == 2
-    assert context["dvp_rank"] == 2
 
 
-def test_3pt_volume_down_no_bonus():
-    """Volume is DOWN (three_pa < season_avg_three_pa) -> no bonus even if rank is good."""
+def test_3pt_dvp_rank_3_to_6_gives_2():
+    """DvP rank 5 (3-6 range) → +2 instead of +3. Max score = 5 = VERY FAVORABLE."""
+    score, rating, signals, context = _score_player_3pt(
+        position="PG", opponent_name="TeamA",
+        team_defense=TEAM_DEF_3PT_GOOD,
+        recent_stats=RECENT_3PT_ABOVE_AVG,
+        tracking_data=None,
+    )
+    assert signals["dvp"] == 2
+    assert score == 5  # 2 + 1 + 2
+    assert rating == "VERY FAVORABLE"
+
+
+def test_3pt_volume_down_opponent_permissive():
+    """Volume DOWN but opponent permissive (rank_three_pa <= 6) → only one condition → +1."""
     score, rating, signals, context = _score_player_3pt(
         position="PG", opponent_name="TeamA",
         team_defense=TEAM_DEF_3PT_ELITE,
         recent_stats=RECENT_3PT_VOLUME_DOWN,
         tracking_data=None,
-        is_stepping_up=True,
     )
-    assert signals.get("potential_3pt", 0) == 0
-    # DvP +3 + form +1 (three_pm above avg) = 4
-    assert score == 4
+    assert signals["potential_3pt"] == 1
+    # DvP rank 2 (+3) + form +1 + one condition (+1) = 5
+    assert score == 5
     assert rating == "VERY FAVORABLE"
 
 
-def test_3pt_fallback_rank_pa_top3():
-    """rank_three_pa <= 3 and volume up -> +2 (fallback same as primary for 3pt)."""
+def test_3pt_both_signal3_conditions():
+    """rank_three_pa <= 6 AND volume up → +2 (both conditions met)."""
     score, rating, signals, context = _score_player_3pt(
         position="PG", opponent_name="TeamA",
         team_defense=TEAM_DEF_3PT_RANK_PA_TOP3,
         recent_stats=RECENT_3PT_ABOVE_AVG,
         tracking_data=None,
-        is_stepping_up=True,
     )
     assert signals["potential_3pt"] == 2
-    assert score == 6
 
 
-def test_3pt_rank_pa_4_no_fallback():
-    """rank_three_pa=4, tracking=None -> fallback needs rank_three_pa<=3, so no bonus."""
+def test_3pt_rank_pa_4_both_conditions():
+    """rank_three_pa=4 (<=6, condition A met) + volume up (condition B met) → +2."""
     score, rating, signals, context = _score_player_3pt(
         position="PG", opponent_name="TeamA",
         team_defense=TEAM_DEF_3PT_RANK_PA_4,
         recent_stats=RECENT_3PT_ABOVE_AVG,
         tracking_data=None,
-        is_stepping_up=True,
     )
-    assert signals.get("potential_3pt", 0) == 0
+    assert signals["potential_3pt"] == 2
+    # DvP rank 4 (+2) + form +1 + both conditions (+2) = 5
+    assert score == 5
+
+
+def test_3pt_neither_signal3_condition():
+    """Opponent NOT permissive (rank > 6) AND volume DOWN → 0 for Signal 3."""
+    team_def_strict = {"PG": {"rank_ast": 10, "rank_reb": 10, "rank_three_pm": 2, "rank_three_pa": 8}}
+    recent_vol_down = {"three_pm": 3.0, "season_avg_three_pm": 2.0, "three_pa": 5.0, "season_avg_three_pa": 6.0}
+    score, rating, signals, context = _score_player_3pt(
+        position="PG", opponent_name="TeamA",
+        team_defense=team_def_strict,
+        recent_stats=recent_vol_down,
+        tracking_data=None,
+    )
+    assert signals["potential_3pt"] == 0
+    # DvP rank 2 (+3) + form +1 + neither (0) = 4
     assert score == 4
+    assert rating == "VERY FAVORABLE"
+
+
+def test_3pt_only_volume_up():
+    """Volume UP but opponent rank_three_pa > 6 → only one condition → +1."""
+    team_def_strict = {"PG": {"rank_ast": 10, "rank_reb": 10, "rank_three_pm": 2, "rank_three_pa": 8}}
+    score, rating, signals, context = _score_player_3pt(
+        position="PG", opponent_name="TeamA",
+        team_defense=team_def_strict,
+        recent_stats=RECENT_3PT_ABOVE_AVG,
+        tracking_data=None,
+    )
+    assert signals["potential_3pt"] == 1
 
 
 # ---------------------------------------------------------------------------
