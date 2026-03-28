@@ -35,6 +35,8 @@ POSITION_COMPAT = {
     "C":  {"C",  "PF"},
 }
 
+BLOWOUT_ODD_THRESHOLD = 1.10
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -234,6 +236,36 @@ def filter_games_by_stake(games, standings):
 
         print(_format_team_line(home_tri, home_data, home_tag))
         print(_format_team_line(away_tri, away_data, away_tag))
+
+        filtered.append(game)
+
+    return filtered
+
+
+def filter_games_by_blowout(games, moneylines):
+    """
+    Remove games where the favorite's moneyline odd is <= BLOWOUT_ODD_THRESHOLD.
+
+    moneylines: {(away_tc, home_tc): float} from get_game_moneylines().
+    Pipeline-position-agnostic: filters whatever list it receives.
+    Games with no odds data are included (fail-open).
+    """
+    filtered = []
+
+    for game in games:
+        away_tri = game["away_tricode"]
+        home_tri = game["home_tricode"]
+        label = f"{away_tri} @ {home_tri}"
+        lowest_odd = moneylines.get((away_tri, home_tri))
+
+        if lowest_odd is not None and lowest_odd <= BLOWOUT_ODD_THRESHOLD:
+            print(f"[blowout-filter] {label} — excluded (odd {lowest_odd} <= {BLOWOUT_ODD_THRESHOLD})")
+            continue
+
+        if lowest_odd is None:
+            print(f"[blowout-filter] {label} — included (no odds data)")
+        else:
+            print(f"[blowout-filter] {label} — included (odd {lowest_odd})")
 
         filtered.append(game)
 
