@@ -104,6 +104,72 @@ def get_event_ids(games):
     return result
 
 
+def get_game_moneylines(games):
+    """
+    Fetches moneyline (h2h) odds for today's NBA games.
+
+    Returns {(away_tricode, home_tricode): lowest_odd} where lowest_odd
+    is the minimum decimal price (the favorite) across all bookmakers.
+    Returns float values. Empty dict on failure.
+    Costs 1 API request credit per call.
+    """
+    api_key = _get_api_key()
+    if not api_key:
+        print("  [odds] WARNING: ODDS_API_KEY not set — skipping moneylines")
+        return {}
+
+    wanted = {
+        (g["away_tricode"], g["home_tricode"])
+        for g in games
+        if g.get("away_tricode") and g.get("home_tricode")
+    }
+
+    try:
+        resp = requests.get(
+            f"{BASE_URL}/sports/basketball_nba/odds",
+            params={
+                "apiKey": api_key,
+                "markets": "h2h",
+                "oddsFormat": "decimal",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"  [odds] WARNING: could not fetch moneylines — {e}")
+        return {}
+
+    print(f"  [odds] moneylines — requests remaining: {resp.headers.get('x-requests-remaining', 'unknown')}")
+
+    api_events = resp.json()
+    name_to_tricode = {v: k for k, v in TRICODE_TO_API_NAME.items()}
+
+    result = {}
+    for event in api_events:
+        away_api = event.get("away_team", "")
+        home_api = event.get("home_team", "")
+        away_tc = name_to_tricode.get(away_api)
+        home_tc = name_to_tricode.get(home_api)
+
+        if not away_tc or not home_tc or (away_tc, home_tc) not in wanted:
+            continue
+
+        all_prices = []
+        for bookmaker in event.get("bookmakers", []):
+            for market in bookmaker.get("markets", []):
+                if market.get("key") != "h2h":
+                    continue
+                for outcome in market.get("outcomes", []):
+                    price = outcome.get("price")
+                    if price is not None:
+                        all_prices.append(float(price))
+
+        if all_prices:
+            result[(away_tc, home_tc)] = min(all_prices)
+
+    return result
+
+
 def _fetch_odds(api_key, event_id, markets_csv, game_label):
     """Fetch odds for a single event with retry on 429. Returns response JSON or None."""
     for attempt in range(3):
