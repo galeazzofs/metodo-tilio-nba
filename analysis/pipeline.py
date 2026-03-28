@@ -5,9 +5,9 @@ from scrapers.nba import (
 )
 from scrapers.rotowire import get_projected_lineups
 from scrapers.fantasypros import get_defense_vs_position
-from scrapers.odds import get_event_ids, get_player_lines
+from scrapers.odds import get_event_ids, get_player_lines, get_game_moneylines
 from scrapers.nba import get_conference_standings
-from analysis.engine import run_analysis, filter_games_by_stake
+from analysis.engine import run_analysis, filter_games_by_stake, filter_games_by_blowout
 
 
 def run_pipeline(games=None):
@@ -26,6 +26,10 @@ def run_pipeline(games=None):
 
     print(f"  {len(games)} jogos esta noite")
 
+    print("Buscando moneylines para filtro de blowout...")
+    moneylines = get_game_moneylines(games)
+    print(f"  {len(moneylines)} jogos com odds carregados")
+
     print("Filtrando jogos com implicação de playoff/play-in...")
     standings = get_conference_standings()
     games = filter_games_by_stake(games, standings)
@@ -33,6 +37,13 @@ def run_pipeline(games=None):
         print("  Nenhum jogo com implicação de playoff/play-in hoje.")
         return None, games
     print(f"  {len(games)} jogos relevantes")
+
+    print("Filtrando jogos com disparidade extrema (blowout)...")
+    games = filter_games_by_blowout(games, moneylines)
+    if not games:
+        print("  Todos os jogos restantes foram filtrados por blowout.")
+        return None, games
+    print(f"  {len(games)} jogos após filtro de blowout")
 
     print("Buscando lineups projetados (RotoWire)...")
     lineups = get_projected_lineups()
