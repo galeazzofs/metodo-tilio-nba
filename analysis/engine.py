@@ -460,14 +460,14 @@ def _score_player_reb(position, opponent_name, team_defense, recent_stats, track
     return score, rating, signals, context
 
 
-def _score_player_3pt(position, opponent_name, team_defense, recent_stats, tracking_data, is_stepping_up):
+def _score_player_3pt(position, opponent_name, team_defense, recent_stats, tracking_data):
     """
     Score a player's 3-point upside (0-6 scale).
+    Graduated DvP: rank 1-2 → 3pts, rank 3-6 → 2pts, 7+ → discard.
+    Graduated Signal 3: both conditions → 2pts, one → 1pt, neither → 0.
+    Threshold: 4 for VERY FAVORABLE, 6 for BEST OF THE NIGHT.
     Returns (score, rating, signals_dict, context_dict).
     """
-    if not is_stepping_up:
-        return 0, None, {}, {}
-
     pos_def = team_defense.get(position, {})
     dvp_rank = pos_def.get("rank_three_pm")
 
@@ -475,13 +475,18 @@ def _score_player_3pt(position, opponent_name, team_defense, recent_stats, track
     signals = {}
     descriptions = []
 
-    # --- Signal 1: DvP 3PM rank (0 or 3 pts) ---
-    if dvp_rank is None or dvp_rank > 6:
+    # --- Signal 1: DvP 3PM rank (graduated: 0, 2, or 3 pts) ---
+    dvp_pts = 0
+    if dvp_rank is not None:
+        if dvp_rank <= 2:
+            dvp_pts = 3
+        elif dvp_rank <= 6:
+            dvp_pts = 2
+    if dvp_pts == 0:
         return 0, None, {}, {}
-
-    score += 3
-    signals["dvp"] = 3
-    descriptions.append(f"Elite 3PT matchup vs {opponent_name} (DvP #{dvp_rank})")
+    score += dvp_pts
+    signals["dvp"] = dvp_pts
+    descriptions.append(f"3PT matchup vs {opponent_name} (DvP #{dvp_rank}, +{dvp_pts})")
 
     # --- Signal 2: Recent form (0 or 1 pt) ---
     three_pm_recent = recent_stats.get("three_pm", 0)
@@ -493,28 +498,28 @@ def _score_player_3pt(position, opponent_name, team_defense, recent_stats, track
     else:
         signals["recent_form"] = 0
 
-    # --- Signal 3: 3PT potential (0 or 2 pts) ---
-    # Requires volume up: three_pa >= season_avg_three_pa
+    # --- Signal 3: 3PT opportunity (graduated: 0, 1, or 2 pts) ---
     three_pa = recent_stats.get("three_pa", 0)
     season_avg_three_pa = recent_stats.get("season_avg_three_pa", 0)
-    volume_up = three_pa >= season_avg_three_pa
-
     rank_three_pa = pos_def.get("rank_three_pa", 99)
-    three_bonus = 0
 
-    if volume_up:
-        if tracking_data is not None and rank_three_pa <= 6:
-            three_bonus = 2
-            descriptions.append(f"Volume up ({three_pa} 3PA) + opponent allows 3PA (rank {rank_three_pa})")
-        elif tracking_data is None and rank_three_pa <= 3:
-            three_bonus = 2
-            descriptions.append(f"Fallback: volume up ({three_pa} 3PA) + top-3 opponent 3PA rank ({rank_three_pa})")
+    condition_a = rank_three_pa <= 6  # opponent permissive
+    condition_b = three_pa >= season_avg_three_pa  # volume up
 
-    if three_bonus:
-        score += three_bonus
-        signals["potential_3pt"] = three_bonus
+    if condition_a and condition_b:
+        three_bonus = 2
+        descriptions.append(f"Volume up ({three_pa} 3PA) + opponent allows 3PA (rank {rank_three_pa})")
+    elif condition_a or condition_b:
+        three_bonus = 1
+        if condition_a:
+            descriptions.append(f"Opponent allows 3PA (rank {rank_three_pa})")
+        else:
+            descriptions.append(f"Volume up ({three_pa} 3PA)")
     else:
-        signals["potential_3pt"] = 0
+        three_bonus = 0
+
+    score += three_bonus
+    signals["potential_3pt"] = three_bonus
 
     # --- Rating ---
     if score >= 6:
@@ -730,7 +735,7 @@ def run_analysis(games, lineups, dvp, team_defense, tracking_data, pace_map=None
                     pos_for_trk = POSITION_MAP.get(position, [position])[0]
                     opp_3pt_tracking = opp_team_trk.get(pos_for_trk)
                 three_score, three_rating, three_signals, three_context = _score_player_3pt(
-                    position, opponent_name, team_defense, recent_stats, opp_3pt_tracking, True,
+                    position, opponent_name, team_defense, recent_stats, opp_3pt_tracking,
                 )
                 if three_rating:
                     three_context["starter_out"] = replaces_list[0] if replaces_list else None
