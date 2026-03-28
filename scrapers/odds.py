@@ -110,6 +110,8 @@ def get_game_moneylines(games):
 
     Returns {(away_tricode, home_tricode): lowest_odd} where lowest_odd
     is the minimum decimal price (the favorite) across all bookmakers.
+    Keys always use the NBA API's (away, home) ordering regardless of
+    how The Odds API labels home/away.
     Returns float values. Empty dict on failure.
     Costs 1 API request credit per call.
     """
@@ -118,11 +120,16 @@ def get_game_moneylines(games):
         print("  [odds] WARNING: ODDS_API_KEY not set — skipping moneylines")
         return {}
 
-    wanted = {
-        (g["away_tricode"], g["home_tricode"])
-        for g in games
-        if g.get("away_tricode") and g.get("home_tricode")
-    }
+    # Build lookup with BOTH orderings of (team_a, team_b) to handle
+    # cases where The Odds API and NBA API disagree on home/away.
+    # Maps any ordering → the canonical NBA API (away, home) key.
+    canonical_key = {}
+    for g in games:
+        away = g.get("away_tricode")
+        home = g.get("home_tricode")
+        if away and home:
+            canonical_key[(away, home)] = (away, home)
+            canonical_key[(home, away)] = (away, home)
 
     try:
         resp = requests.get(
@@ -151,7 +158,12 @@ def get_game_moneylines(games):
         away_tc = name_to_tricode.get(away_api)
         home_tc = name_to_tricode.get(home_api)
 
-        if not away_tc or not home_tc or (away_tc, home_tc) not in wanted:
+        if not away_tc or not home_tc:
+            continue
+
+        # Look up canonical key — handles home/away order mismatch
+        canon = canonical_key.get((away_tc, home_tc))
+        if canon is None:
             continue
 
         all_prices = []
@@ -165,7 +177,7 @@ def get_game_moneylines(games):
                         all_prices.append(float(price))
 
         if all_prices:
-            result[(away_tc, home_tc)] = min(all_prices)
+            result[canon] = min(all_prices)
 
     return result
 
