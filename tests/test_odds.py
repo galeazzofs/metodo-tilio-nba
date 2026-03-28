@@ -112,5 +112,6 @@ def test_get_game_moneylines_calls_correct_endpoint(mock_get, mock_key):
     get_game_moneylines(GAMES)
     call_args = mock_get.call_args
     assert "basketball_nba/odds" in call_args[0][0]
+    assert call_args[1]["params"]["regions"] == "us"
     assert call_args[1]["params"]["markets"] == "h2h"
     assert call_args[1]["params"]["oddsFormat"] == "decimal"

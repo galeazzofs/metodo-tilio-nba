@@ -136,6 +136,7 @@ def get_game_moneylines(games):
             f"{BASE_URL}/sports/basketball_nba/odds",
             params={
                 "apiKey": api_key,
+                "regions": "us",
                 "markets": "h2h",
                 "oddsFormat": "decimal",
             },
