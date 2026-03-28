@@ -6,6 +6,7 @@ from analysis.engine import (
     _score_player, run_analysis, _position_compatible, _team_has_stake,
     filter_games_by_stake, _ordinal, _score_player_ast, _score_player_reb,
     _score_player_3pt, _dedup_candidates,
+    filter_games_by_blowout, BLOWOUT_ODD_THRESHOLD,
 )
 
 # ---------------------------------------------------------------------------
@@ -23,6 +24,23 @@ RECENT_LOW    = {"pts": 5.0,  "min": 18.0, "games": 15, "season_avg_pts": 10.0}
 
 ZONES_PAINT = {"Restricted Area": {"attempts": 20, "made": 14, "pct": 70.0, "frequency": 50.0}}
 OPP_DEFENSE_PAINT = {"Restricted Area": {"fgm": 18.0, "fga": 28.0, "pct": 0.64}}
+
+# ---------------------------------------------------------------------------
+# Blowout filter fixtures
+# ---------------------------------------------------------------------------
+
+GAME_BOS_LAL = {
+    "home_tricode": "LAL", "away_tricode": "BOS",
+    "home_team_id": 1, "away_team_id": 2,
+}
+GAME_MIA_NYK = {
+    "home_tricode": "NYK", "away_tricode": "MIA",
+    "home_team_id": 3, "away_team_id": 4,
+}
+GAME_GSW_SAC = {
+    "home_tricode": "SAC", "away_tricode": "GSW",
+    "home_team_id": 5, "away_team_id": 6,
+}
 
 # ---------------------------------------------------------------------------
 # Gate 0: is_stepping_up
@@ -1040,3 +1058,61 @@ def test_run_analysis_returns_stat_dict():
         result = run_analysis([], {}, {}, {}, None)
     assert isinstance(result, dict)
     assert set(result.keys()) == {"pts", "ast", "reb", "three_pt"}
+
+
+def test_blowout_filter_excludes_at_threshold():
+    """Odd exactly equal to threshold (1.10) should be excluded."""
+    games = [GAME_BOS_LAL]
+    moneylines = {("BOS", "LAL"): 1.10}
+    result = filter_games_by_blowout(games, moneylines)
+    assert result == []
+
+def test_blowout_filter_excludes_below_threshold():
+    """Odd below threshold (e.g. 1.05) should be excluded."""
+    games = [GAME_BOS_LAL]
+    moneylines = {("BOS", "LAL"): 1.05}
+    result = filter_games_by_blowout(games, moneylines)
+    assert result == []
+
+def test_blowout_filter_includes_above_threshold():
+    """Odd above threshold (e.g. 1.45) should be included."""
+    games = [GAME_MIA_NYK]
+    moneylines = {("MIA", "NYK"): 1.45}
+    result = filter_games_by_blowout(games, moneylines)
+    assert len(result) == 1
+    assert result[0] is GAME_MIA_NYK
+
+def test_blowout_filter_includes_when_no_odds_data():
+    """Games without odds data should pass through (fail-open)."""
+    games = [GAME_GSW_SAC]
+    moneylines = {}
+    result = filter_games_by_blowout(games, moneylines)
+    assert len(result) == 1
+    assert result[0] is GAME_GSW_SAC
+
+def test_blowout_filter_mixed_games():
+    """Multiple games: some excluded, some included."""
+    games = [GAME_BOS_LAL, GAME_MIA_NYK, GAME_GSW_SAC]
+    moneylines = {
+        ("BOS", "LAL"): 1.08,
+        ("MIA", "NYK"): 1.45,
+    }
+    result = filter_games_by_blowout(games, moneylines)
+    assert len(result) == 2
+    assert GAME_BOS_LAL not in result
+    assert GAME_MIA_NYK in result
+    assert GAME_GSW_SAC in result
+
+def test_blowout_filter_logs_excluded_game(capsys):
+    """Excluded games should log in the correct format."""
+    games = [GAME_BOS_LAL]
+    moneylines = {("BOS", "LAL"): 1.08}
+    filter_games_by_blowout(games, moneylines)
+    captured = capsys.readouterr()
+    assert "[blowout-filter] BOS @ LAL" in captured.out
+    assert "excluded" in captured.out
+    assert "1.08" in captured.out
+
+def test_blowout_threshold_value():
+    """Threshold constant should be 1.10."""
+    assert BLOWOUT_ODD_THRESHOLD == 1.10
