@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from deps import init_firebase, require_auth
 from bets.router import router as bets_router
+from bets.router_diversas import router as bets_diversas_router
 from routers.analyses import router as analyses_router
 from scheduler import init_scheduler, shutdown_scheduler, trigger_now
 
@@ -38,6 +39,7 @@ if os.environ.get("ENV") == "development":
     )
 
 app.include_router(bets_router)
+app.include_router(bets_diversas_router)
 app.include_router(analyses_router)
 
 # ---------------------------------------------------------------------------

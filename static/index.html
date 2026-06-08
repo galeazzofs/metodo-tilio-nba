@@ -402,6 +402,13 @@
       display: flex; flex-direction: column; gap: 4px;
     }
 
+    .nav-group-label {
+      font-family: var(--font-mono); font-size: 9px;
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--muted); padding: 14px 12px 4px; opacity: 0.7;
+    }
+    .nav-group-label:first-child { padding-top: 2px; }
+
     .nav-item {
       display: flex; align-items: center; gap: 10px;
       padding: 11px 12px;
@@ -1564,10 +1571,10 @@
       gap: 3px;
       background: none; border: none; cursor: pointer;
       color: var(--muted);
-      font-family: var(--font-body); font-size: 11px; font-weight: 500;
-      padding: 8px 16px; border-radius: 12px;
+      font-family: var(--font-body); font-size: 10px; font-weight: 500;
+      padding: 8px 4px; border-radius: 12px;
       transition: all var(--transition);
-      flex: 1;
+      flex: 1; min-width: 0; white-space: nowrap;
     }
     .bn-item svg { width: 20px; height: 20px; }
     .bn-item.active { color: var(--amber); }
@@ -1665,15 +1672,26 @@
     </div>
 
     <nav class="sidebar-nav">
+      <div class="nav-group-label">NBA</div>
       <div class="nav-item active" data-tab="analise" onclick="switchTab('analise')">
         <span class="nav-dot"></span>
         <span>Análise</span>
       </div>
-<div class="nav-item" data-tab="apostas" onclick="switchTab('apostas')">
+      <div class="nav-item" data-tab="apostas" onclick="switchTab('apostas')">
         <span class="nav-dot"></span>
         <span>Apostas</span>
       </div>
       <div class="nav-item" data-tab="painel" onclick="switchTab('painel')">
+        <span class="nav-dot"></span>
+        <span>Painel</span>
+      </div>
+
+      <div class="nav-group-label">Diversas</div>
+      <div class="nav-item" data-tab="diversas" onclick="switchTab('diversas')">
+        <span class="nav-dot"></span>
+        <span>Apostas</span>
+      </div>
+      <div class="nav-item" data-tab="painel-diversas" onclick="switchTab('painel-diversas')">
         <span class="nav-dot"></span>
         <span>Painel</span>
       </div>
@@ -1719,6 +1737,12 @@
     <!-- Aba Painel (preenchida pelo JS) -->
     <div id="tab-painel" class="tab-panel"></div>
 
+    <!-- Aba Diversas (preenchida pelo JS) -->
+    <div id="tab-diversas" class="tab-panel"></div>
+
+    <!-- Aba Painel Diversas (preenchida pelo JS) -->
+    <div id="tab-painel-diversas" class="tab-panel"></div>
+
   </div><!-- /main-scroll -->
 
     <nav class="bottom-nav">
@@ -1742,6 +1766,18 @@
         </svg>
         <span>Painel</span>
       </button>
+      <button class="bn-item" data-tab="diversas" onclick="switchTab(this.dataset.tab)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/>
+        </svg>
+        <span>Diversas</span>
+      </button>
+      <button class="bn-item" data-tab="painel-diversas" onclick="switchTab(this.dataset.tab)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>
+        </svg>
+        <span>Painel Div</span>
+      </button>
     </nav>
 </div><!-- /appShell -->
 
@@ -1759,6 +1795,8 @@
 <script src="/static/analise.js"></script>
 <script src="/static/apostas.js"></script>
 <script src="/static/painel.js"></script>
+<script src="/static/diversas.js"></script>
+<script src="/static/painel_diversas.js"></script>
 
 <script>
   let _mode = 'entrar';
@@ -1837,9 +1875,11 @@
 
   function animateTab(tabId) {
     const SELECTORS = {
-painel:  '.dash-kpi, .dash-chart-card, .chart-box',
+      painel:  '.dash-kpi, .dash-chart-card, .chart-box',
       apostas: '.bet-card',
       analise: '.card',
+      diversas: '.bet-card',
+      'painel-diversas': '.dash-kpi, .dash-chart-card, .chart-box',
     };
     const sel = SELECTORS[tabId];
     if (!sel) return;
@@ -1865,8 +1905,10 @@ painel:  '.dash-kpi, .dash-chart-card, .chart-box',
       b.classList.toggle('active', b.dataset.tab === name)
     );
     history.replaceState(null, '', '#' + name);
-if (name === 'apostas') loadApostas();
-    if (name === 'painel')  loadPainel();
+    if (name === 'apostas')          loadApostas();
+    if (name === 'painel')           loadPainel();
+    if (name === 'diversas')         loadDiversas();
+    if (name === 'painel-diversas')  loadPainelDiversas();
     animateTab(name);
   }
 
@@ -1879,7 +1921,7 @@ if (name === 'apostas') loadApostas();
       document.getElementById('userAvatar').textContent = email.charAt(0).toUpperCase() || '?';
       initAnalise();
       const hash = location.hash.replace('#', '');
-      switchTab(['analise','apostas','painel'].includes(hash) ? hash : 'analise');
+      switchTab(['analise','apostas','painel','diversas','painel-diversas'].includes(hash) ? hash : 'analise');
     } else {
       document.getElementById('authScreen').style.display = 'flex';
       document.getElementById('appShell').style.display   = 'none';
